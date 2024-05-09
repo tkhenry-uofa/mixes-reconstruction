@@ -8,16 +8,24 @@
 namespace me = matlab::engine;
 namespace md = matlab::data;
 
-class volume
+
+class Volume
 {
 public:
 
-	volume( me::MATLABEngine* engine, float x_min, float x_max,
-		float y_min, float y_max,
-		float z_min, float z_max,
-		float resolution);
+	struct VolumeDims {
+		const float xMin;
+		const float xMax;
+		const float yMin;
+		const float yMax;
+		const float zMin;
+		const float zMax;
+		const float resolution;
+	};
 
-	~volume();
+	Volume( me::MATLABEngine* engine, const VolumeDims& dims);
+
+	~Volume();
 
 	inline float*** get_data()
 	{
@@ -39,17 +47,14 @@ public:
 		return _zCount;
 	}
 
+
 private:
 
 	float*** _data;
 
-	float _xMin;
-	float _xMax;
-	float _yMin;
-	float _yMax;
-	float _zMin;
-	float _zMax;
-	float _resolution;
+	std::vector<std::vector<std::vector<float>>> _dataVector;
+
+	VolumeDims _dims;
 
 	size_t _xCount;
 	size_t _yCount;
@@ -59,6 +64,6 @@ private:
 	std::vector<float> _yRange;
 	std::vector<float> _zRange;
 
-	me::MATLABEngine const * _engine;
+	me::MATLABEngine const* _engine;
 };
 

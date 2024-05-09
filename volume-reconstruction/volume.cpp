@@ -1,29 +1,16 @@
 #include "volume.h"
 
-volume::volume( me::MATLABEngine *engine, float x_min, float x_max,
-    float y_min, float y_max,
-    float z_min, float z_max,
-    float resolution) :
-    _data(nullptr), _engine(engine),
-    _xMin(x_min), _xMax(x_max),
-    _yMin(y_min), _yMax(y_max),
-    _zMin(z_min), _zMax(z_max),
-    _resolution(resolution),
-    _xCount(0), _yCount(0), _zCount(0)
-{
-
-    for (float x = _xMin; x <= _xMax; x += _resolution)
-    {
+Volume::Volume(me::MATLABEngine* engine, const VolumeDims& dims): 
+                _engine(engine), _dims(dims) {
+    
+    
+    for (float x = _dims.xMin; x <= _dims.xMax; x += _dims.resolution) {
         _xRange.push_back(x);
     }
-
-    for (float y = _yMin; y <= _yMax; y += _resolution)
-    {
+    for (float y = _dims.yMin; y <= _dims.yMax; y += _dims.resolution) {
         _yRange.push_back(y);
     }
-
-    for (float z = _zMin; z <= _zMax; z += _resolution)
-    {
+    for (float z = _dims.zMin; z <= _dims.zMax; z += _dims.resolution) {
         _zRange.push_back(z);
     }
 
@@ -40,9 +27,12 @@ volume::volume( me::MATLABEngine *engine, float x_min, float x_max,
             _data[i][j] = new float[_zCount] {0};
         }
     }
+
+    // TODO: Change to thrust 
+    _dataVector.resize(_xCount, std::vector<std::vector<float>>(_yCount, std::vector<float>(_zCount, 0.0f)));
 }
 
-volume::~volume()
+Volume::~Volume()
 {
     for (int i = 0; i < _xCount; i++) {
         for (int j = 0; j < _yCount; j++) {
@@ -53,23 +43,3 @@ volume::~volume()
     delete[] _data;
 
 }
-//
-//mxArray*
-//volume::to_mxArray()
-//{
-//
-//    const mwSize size[3] = { _xCount, _yCount, _zCount };
-//
-//    mxArray* mData = mxCreateNumericArray(3, &size[0], mxSINGLE_CLASS, mxREAL);
-//
-//    for (int i = 0; i < _xCount; i++)
-//    {
-//        for (int j = 0; j < _yCount; j++)
-//        {
-//            for (int k = 0; k < _zCount; k++)
-//            {
-//                &(mData[i][j][k]) = _data[i][j][k];
-//            }
-//        }
-//    }
-//}

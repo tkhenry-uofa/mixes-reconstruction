@@ -12,18 +12,19 @@
 
 #include "volume.h"
 
-static const float XMin = -15.0 / 1000;
-static const float XMax = 15.0 / 1000;
+static const float XMin = -15.0f / 1000;
+static const float XMax = 15.0f / 1000;
 
-static const float YMin = -15.0 / 1000;
-static const float YMax = 15.0 / 1000;
+static const float YMin = -15.0f / 1000;
+static const float YMax = 15.0f / 1000;
 
-static const float ZMin = 40.0 / 1000;
-static const float ZMax = 60.0 / 1000;
+static const float ZMin = 40.0f / 1000;
+static const float ZMax = 60.0f / 1000;
 
-static const float Resolution = 0.00015;
+static const float Resolution = 0.00015f;
 
-cudaError_t addWithCuda(int* c, const int* a, const int* b, unsigned int size);
+static const Volume::VolumeDims VolumeDims = { XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution };
+
 
 namespace me = matlab::engine;
 namespace md = matlab::data;
@@ -71,20 +72,17 @@ int main()
 
     md::ArrayFactory factory;
 
-    printf("Initializing matlab.\n");
+    printf("Initializing matlab\n");
     std::unique_ptr<me::MATLABEngine> engine = me::startMATLAB();
 
-    printf("Loading matlab data.\n");
+
+    printf("Loading matlab data\n");
 
     std::unique_ptr<md::StructArray> fileContents;
 
     try {
-        // Call MATLAB 'load' function
 
         fileContents.reset( new md::StructArray(engine->feval(u"load", factory.createCharArray(path))));
-
-        // Displaying loaded data (Optional)
-        /*engine->feval(u"disp", { result });*/
 
     }
     catch (const std::exception& e) {
@@ -114,9 +112,11 @@ int main()
     md::CellArray allLocData = (*fileContents)[0][fieldNames[1]];
 
 
-    volume* vol = new volume(engine.get(), XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution);
+    Volume* vol = new Volume(engine.get(), VolumeDims);
 
     delete vol;
+
+    printf("Done\n");
 
     return 0;
 }
