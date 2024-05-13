@@ -84,10 +84,14 @@
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="volume.cpp" />
+    <ClCompile Include="cellDataArray.cc" />
+    <ClCompile Include="main.cc" />
+    <ClCompile Include="volume.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="volume.h" />
+    <ClInclude Include="cellDataArray.hh" />
+    <ClInclude Include="kernel.hh" />
+    <ClInclude Include="volume.hh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

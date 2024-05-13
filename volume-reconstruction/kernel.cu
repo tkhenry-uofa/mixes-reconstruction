@@ -1,33 +1,23 @@
 ﻿
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
+
 
 #include <stdio.h>
 #include <string>
 #include <vector>
 #include <iostream>
 
-#include <MatlabDataArray.hpp>
-#include <MatlabEngine.hpp>
+#include "kernel.hh"
 
-#include "volume.h"
+struct GpuConstants {
+    const int xCount;
+    const int yCount;
+    const int zCount;
+    const int voxelCount;
+    const int transmissionCount;
+    const int elementCount;
+    const int rfSampleCount;
+};
 
-static const float XMin = -15.0f / 1000;
-static const float XMax = 15.0f / 1000;
-
-static const float YMin = -15.0f / 1000;
-static const float YMax = 15.0f / 1000;
-
-static const float ZMin = 40.0f / 1000;
-static const float ZMax = 60.0f / 1000;
-
-static const float Resolution = 0.00015f;
-
-static const Volume::VolumeDims VolumeDims = { XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution };
-
-
-namespace me = matlab::engine;
-namespace md = matlab::data;
 
 __global__ void addKernel(int* c, const int* a, const int* b)
 {
@@ -35,145 +25,172 @@ __global__ void addKernel(int* c, const int* a, const int* b)
     c[i] = a[i] + b[i];
 }
 
-void callSQRT() {
 
-    using namespace matlab::engine;
+__global__ void delayAndSum(const float* rfData,const float* locData, const GpuConstants* constants, const float* xRange, const float* yRange, const float *zRange, float* volume)
+{
+    // xyz dims 201, 201, 134 
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int tz = threadIdx.z;
 
-    // Start MATLAB engine synchronously
-    std::unique_ptr<MATLABEngine> matlabPtr = startMATLAB();
-
-    //Create MATLAB data array factory
-    matlab::data::ArrayFactory factory;
-
-    // Define a four-element typed array
-    matlab::data::TypedArray<double> const argArray =
-        factory.createArray({ 1,4 }, { -2.0, 2.0, 6.0, 8.0 });
-
-    // Call MATLAB sqrt function on the data array
-    matlab::data::Array const results = matlabPtr->feval(u"sqrt", argArray);
-
-    // Display results
-    for (int i = 0; i < results.getNumberOfElements(); i++) {
-        double a = argArray[i];
-        std::complex<double> v = results[i];
-        double realPart = v.real();
-        double imgPart = v.imag();
-        std::cout << "Square root of " << a << " is " <<
-            realPart << " + " << imgPart << "i" << std::endl;
+    const float Speed = 1540;
+    const float Fs = 100000000; // 100 MHz
+    
+    if (tx != 101 || ty >= 201 || tz >= 134)
+    {
+        return;
     }
+
+    int voxelId = (tx * constants->yCount * constants->zCount) + (ty * constants->zCount) + tz;
+
+    float* voxel = &volume[ voxelId ];
+    float xPos = xRange[tx];
+    float yPos = yRange[ty];
+    float zPos = zRange[tz];
+
+    float distance;
+    int scanIndex;
+    float exPos, eyPos, ezPos;
+    for (int t = 0; t < constants->transmissionCount; t++)
+    {
+        for (int e = 0; e < constants->elementCount; e++)
+        {
+            exPos = locData[3 * (t * constants->elementCount + e)];
+            eyPos = locData[3 * (t * constants->elementCount + e) + 1];
+            ezPos = locData[3 * (t * constants->elementCount + e) + 2];
+
+            // voxel to rx element
+            distance = sqrtf(powf(xPos - exPos, 2) + powf(yPos - eyPos, 2) + powf(zPos - ezPos, 2));
+
+            // tx element to voxel (only valid for plane waves under the shadow)
+            distance = distance + zPos;
+
+            scanIndex = roundf(distance / (Speed * Fs));
+
+            if (scanIndex >= constants->rfSampleCount)
+            {
+                continue;
+            }
+
+            *voxel = *voxel + rfData[t * constants->rfSampleCount + scanIndex];
+        }
+    }
+
 }
 
-
-
-int main()
+cudaError_t volumeReconstruction(Volume* volume, const CellDataArray& rfData, const CellDataArray& locData)
 {
-
-    std::string path = R"(C:\Users\tkhen\source\repos\cuda\hello_world\data\psf_0050_16_scans.mat)";
-
-    md::ArrayFactory factory;
-
-    printf("Initializing matlab\n");
-    std::unique_ptr<me::MATLABEngine> engine = me::startMATLAB();
-
-
-    printf("Loading matlab data\n");
-
-    std::unique_ptr<md::StructArray> fileContents;
-
-    try {
-
-        fileContents.reset( new md::StructArray(engine->feval(u"load", factory.createCharArray(path))));
-
-    }
-    catch (const std::exception& e) {
-        std::cerr << "Error loading file: " << e.what() << std::endl;
-        return -1;
-    }
-
-    size_t fieldCount = fileContents->getNumberOfFields();
-
-    if (fieldCount != 2)
-    {
-        std::cerr << "Expected 2 fields in file, instead found " << fieldCount << std::endl;
-        return -1;
-    }
-
-    md::Range<md::ForwardIterator, md::MATLABFieldIdentifier const> fileRange = fileContents->getFieldNames();
-
-    md::ForwardIterator<md::MATLABFieldIdentifier const> currentValue = fileRange.begin();
-
-    std::vector<std::string> fieldNames;
-    for (; currentValue != fileRange.end(); currentValue++)
-    {
-        fieldNames.push_back(*currentValue);
-    }
-
-    md::CellArray allRfData = (*fileContents)[0][fieldNames[0]];
-    md::CellArray allLocData = (*fileContents)[0][fieldNames[1]];
-
-
-    Volume* vol = new Volume(engine.get(), VolumeDims);
-
-    delete vol;
-
-    printf("Done\n");
-
-    return 0;
-}
-
-
-
-
-
-// Helper function for using CUDA to add vectors in parallel.
-cudaError_t addWithCuda(int* c, const int* a, const int* b, unsigned int size)
-{
-    int* dev_a = 0;
-    int* dev_b = 0;
-    int* dev_c = 0;
+    float* dRfData = 0;
+    float* dLocData = 0;
+    float* dVolume = 0;
+    GpuConstants* dConstants = 0;
     cudaError_t cudaStatus;
+    
+    float* dXPositions = 0;
+    float* dYPositions = 0;
+    float* dZPositions = 0;
+
+
+    GpuConstants constants = {
+        volume->getXCount(),
+        volume->getYCount(),
+        volume->getZCount(),
+        volume->getCount(),
+        rfData.getCellCount(),
+        rfData.getColumnCount(),
+        rfData.getRowCount() };
 
     // Choose which GPU to run on, change this on a multi-GPU system.
     cudaStatus = cudaSetDevice(0);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+        fprintf(stderr, "Failed to connect GPU\n");
         goto Error;
     }
 
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-    cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
+    // Malloc arrays on GPU
+    cudaStatus = cudaMalloc((void**)&dRfData, rfData.getCount() * sizeof(float));
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
+        fprintf(stderr, "Failed to allocate rf array on device\n");
         goto Error;
     }
 
-    cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
+    cudaStatus = cudaMalloc((void**)&dLocData, locData.getCount() * sizeof(float));
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
+        fprintf(stderr, "Failed to allocate location array on device\n");
         goto Error;
     }
 
-    cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
+    cudaStatus = cudaMalloc((void**)&dConstants, sizeof(GpuConstants));
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
+        fprintf(stderr, "Failed to allocate constants array on device\n");
         goto Error;
     }
+
+    cudaStatus = cudaMalloc((void**)&dVolume, volume->getCount() * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate volume on device\n");
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dXPositions, volume->getXCount() * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate volume on device\n");
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dYPositions, volume->getYCount() * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate volume on device\n");
+        goto Error;
+    }
+
+    cudaStatus = cudaMalloc((void**)&dZPositions, volume->getZCount() * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate volume on device\n");
+        goto Error;
+    }
+
+
 
     // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
+    cudaStatus = cudaMemcpy(dRfData, rfData.getData(), rfData.getCount() * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
+        fprintf(stderr, "Failed to copy RF data to device\n");
         goto Error;
     }
 
-    cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
+    cudaStatus = cudaMemcpy(dLocData, locData.getData(), locData.getCount() * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
+        fprintf(stderr, "Failed to copy location data to device\n");
         goto Error;
     }
 
-    // Launch a kernel on the GPU with one thread for each element.
-    addKernel <<<1, size >>> (dev_c, dev_a, dev_b);
+    cudaStatus = cudaMemcpy(dConstants, &constants, sizeof(GpuConstants), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Failed to copy constants to device\n");
+        goto Error;
+    }
+
+    cudaStatus = cudaMemcpy(dXPositions, volume->_xRange.data(), 201 * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Failed to copy constants to device\n");
+        goto Error;
+    }
+
+    cudaStatus = cudaMemcpy(dYPositions, volume->_yRange.data(), 201 * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Failed to copy constants to device\n");
+        goto Error;
+    }
+
+    cudaStatus = cudaMemcpy(dZPositions, volume->_xRange.data(), 134 * sizeof(float), cudaMemcpyHostToDevice);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Failed to copy constants to device\n");
+        goto Error;
+    }
+
+    // KERNEL
+
 
     // Check for any errors launching the kernel
     cudaStatus = cudaGetLastError();
@@ -186,22 +203,26 @@ cudaError_t addWithCuda(int* c, const int* a, const int* b, unsigned int size)
     // any errors encountered during the launch.
     cudaStatus = cudaDeviceSynchronize();
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after calling kernel\n", cudaStatus);
         goto Error;
     }
 
     // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
+    cudaStatus = cudaMemcpy(volume->getData(), dVolume, volume->getCount() * sizeof(float), cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
+        fprintf(stderr, "Failed to copy volume data out of device\n");
         goto Error;
     }
 
+
 Error:
-    cudaFree(dev_c);
-    cudaFree(dev_a);
-    cudaFree(dev_b);
+    cudaFree(dRfData);
+    cudaFree(dLocData);
+    cudaFree(dConstants);
+    cudaFree(dVolume);
+    cudaFree(dXPositions);
+    cudaFree(dYPositions);
+    cudaFree(dZPositions);
 
     return cudaStatus;
 }
-
