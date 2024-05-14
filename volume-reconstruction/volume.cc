@@ -3,9 +3,7 @@
 #include "volume.hh"
 
 Volume::Volume(me::MATLABEngine* engine, const VolumeDims& dims): 
-                _data(nullptr), _dataArray(nullptr), 
-                _dims(dims), _engine(engine), 
-                _matlabArray(nullptr) 
+                _data(nullptr), _dims(dims), _engine(engine), _end(nullptr)
 {
     for (float x = _dims.xMin; x <= _dims.xMax; x += _dims.resolution) {
         _xRange.push_back(x);
@@ -20,16 +18,17 @@ Volume::Volume(me::MATLABEngine* engine, const VolumeDims& dims):
     _xCount = _xRange.size();
     _yCount = _yRange.size();
     _zCount = _zRange.size();
+    _elementCount = _xCount * _yCount * _zCount;
 
-    _data = new float[_xCount * _yCount * _zCount];
-    memset(_data, 0, _xCount * _yCount * _zCount * sizeof(float));
+    _data = new float[_elementCount];
+    memset(_data, 0, _elementCount * sizeof(float));
+
+    _end = &_data[_elementCount - 1];
 
 }
 
 Volume::~Volume()
 {
     delete _data;
-    delete _matlabArray;
-
 }
 

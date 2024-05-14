@@ -10,21 +10,14 @@
 #include "kernel.hh"
 
 struct GpuConstants {
-    const int xCount;
-    const int yCount;
-    const int zCount;
-    const int voxelCount;
-    const int rfSampleCount;
-    const int elementCount;
-    const int transmissionCount;
+    const size_t xCount;
+    const size_t yCount;
+    const size_t zCount;
+    const size_t voxelCount;
+    const size_t rfSampleCount;
+    const size_t elementCount;
+    const size_t transmissionCount;
 };
-
-
-__global__ void addKernel(int* c, const int* a, const int* b)
-{
-    int i = threadIdx.x;
-    c[i] = a[i] + b[i];
-}
 
 
 __global__ void delayAndSum(const float* rfData,const float* locData, const GpuConstants* constants, const float* xRange, const float* yRange, const float *zRange, float* volume)
@@ -81,6 +74,18 @@ __global__ void delayAndSum(const float* rfData,const float* locData, const GpuC
 
 }
 
+
+void
+cleanupMemory(float* floats[6], GpuConstants* constants)
+{
+    cudaFree(constants);
+
+    for (int i = 0; i < 6; i++)
+    {
+        cudaFree(floats[i]);
+    }
+}
+
 cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rfData, const md::TypedArray<float>& locData)
 {
     float* dRfData = 0;
@@ -93,6 +98,8 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
     float* dYPositions = 0;
     float* dZPositions = 0;
 
+    float* deviceData[6] = { dRfData, dLocData, dVolume, dXPositions, dYPositions, dZPositions };
+
     std::vector<size_t> rfDims = rfData.getDimensions();
 
     GpuConstants constants = {
@@ -104,91 +111,94 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
         rfDims[1],
         rfDims[2] };
 
-    // Choose which GPU to run on, change this on a multi-GPU system.
-    cudaStatus = cudaSetDevice(0);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to connect GPU\n");
-        goto Error;
-    }
+    // Transfer data to device
+    {
+        // Choose which GPU to run on, change this on a multi-GPU system.
+        cudaStatus = cudaSetDevice(0);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to connect GPU\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    // Malloc arrays on GPU
-    cudaStatus = cudaMalloc((void**)&dRfData, rfData.getNumberOfElements() * sizeof(float));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate rf array on device\n");
-        goto Error;
-    }
+        // Malloc arrays on GPU
+        cudaStatus = cudaMalloc((void**)&dRfData, rfData.getNumberOfElements() * sizeof(float));
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate rf array on device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMalloc((void**)&dLocData, locData.getNumberOfElements() * sizeof(float));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate location array on device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMalloc((void**)&dLocData, locData.getNumberOfElements() * sizeof(float));
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate location array on device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMalloc((void**)&dConstants, sizeof(GpuConstants));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate constants array on device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMalloc((void**)&dConstants, sizeof(GpuConstants));
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate constants array on device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMalloc((void**)&dVolume, volume->getCount() * sizeof(float));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate volume on device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMalloc((void**)&dVolume, volume->getCount() * sizeof(float));
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate volume on device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMalloc((void**)&dXPositions, volume->getXCount() * sizeof(float));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate volume on device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMalloc((void**)&dXPositions, volume->getXCount() * sizeof(float));
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate volume on device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMalloc((void**)&dYPositions, volume->getYCount() * sizeof(float));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate volume on device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMalloc((void**)&dYPositions, volume->getYCount() * sizeof(float));
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate volume on device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMalloc((void**)&dZPositions, volume->getZCount() * sizeof(float));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate volume on device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMalloc((void**)&dZPositions, volume->getZCount() * sizeof(float));
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate volume on device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dRfData, (void*)&rfData.begin()[0], rfData.getNumberOfElements() * sizeof(float), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to copy RF data to device\n");
-        goto Error;
-    }
+        // Copy input vectors from host memory to GPU buffers.
+        cudaStatus = cudaMemcpy(dRfData, (void*)&rfData.begin()[0], rfData.getNumberOfElements() * sizeof(float), cudaMemcpyHostToDevice);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to copy RF data to device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMemcpy(dLocData, (void*)&locData.begin()[0], locData.getNumberOfElements() * sizeof(float), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to copy location data to device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMemcpy(dLocData, (void*)&locData.begin()[0], locData.getNumberOfElements() * sizeof(float), cudaMemcpyHostToDevice);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to copy location data to device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMemcpy(dConstants, &constants, sizeof(GpuConstants), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to copy constants to device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMemcpy(dConstants, &constants, sizeof(GpuConstants), cudaMemcpyHostToDevice);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to copy constants to device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMemcpy(dXPositions, volume->_xRange.data(), 201 * sizeof(float), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to copy constants to device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMemcpy(dXPositions, volume->getXRange(), volume->getXCount() * sizeof(float), cudaMemcpyHostToDevice);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to copy constants to device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMemcpy(dYPositions, volume->_yRange.data(), 201 * sizeof(float), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to copy constants to device\n");
-        goto Error;
-    }
+        cudaStatus = cudaMemcpy(dYPositions, volume->getXRange(), volume->getYCount() * sizeof(float), cudaMemcpyHostToDevice);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to copy constants to device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    cudaStatus = cudaMemcpy(dZPositions, volume->_zRange.data(), 134 * sizeof(float), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to copy constants to device\n");
-        goto Error;
+        cudaStatus = cudaMemcpy(dZPositions, volume->getXRange(), volume->getZCount() * sizeof(float), cudaMemcpyHostToDevice);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to copy constants to device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
     }
 
     dim3 threadDim(8, 8, 8);
@@ -196,46 +206,43 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    // KERNEL
     delayAndSum<<< blockDim,threadDim>>>(dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
 
     // Print the elapsed time
-    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+    std::cout << "Kernel duration: " << elapsed.count() << " seconds" << std::endl;
 
-    // Check for any errors launching the kernel
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        goto Error;
+    // Transfer Data back
+    {
+        // Check for any errors launching the kernel
+        cudaStatus = cudaGetLastError();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+            cleanupMemory(deviceData, dConstants);
+        }
+
+        // cudaDeviceSynchronize waits for the kernel to finish, and returns
+        // any errors encountered during the launch.
+        cudaStatus = cudaDeviceSynchronize();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "cudaDeviceSynchronize returned error code %d after calling kernel\n", cudaStatus);
+            cleanupMemory(deviceData, dConstants);
+        }
+
+        // Copy output vector from GPU buffer to host memory.
+        cudaStatus = cudaMemcpy(volume->getData(), dVolume, volume->getCount() * sizeof(float), cudaMemcpyDeviceToHost);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to copy volume data out of device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
     }
 
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after calling kernel\n", cudaStatus);
-        goto Error;
-    }
 
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(volume->getData(), dVolume, volume->getCount() * sizeof(float), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to copy volume data out of device\n");
-        goto Error;
-    }
-
-
-Error:
-    cudaFree(dRfData);
-    cudaFree(dLocData);
-    cudaFree(dConstants);
-    cudaFree(dVolume);
-    cudaFree(dXPositions);
-    cudaFree(dYPositions);
-    cudaFree(dZPositions);
+    cleanupMemory(deviceData, dConstants);
 
     return cudaStatus;
 }
+
+

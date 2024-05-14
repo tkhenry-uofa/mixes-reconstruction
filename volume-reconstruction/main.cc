@@ -35,8 +35,6 @@ int main()
 
     std::string dataPath = dataRoot + "psf_0050_16_scans.mat";
 
-    std::cout << dataPath << std::endl;
-
     md::ArrayFactory factory;
 
     printf("Initializing matlab\n");
@@ -78,18 +76,15 @@ int main()
     md::TypedArray<float> matRfData = (*fileContents)[0][fieldNames[1]];
     md::TypedArray<float> matLocData = (*fileContents)[0][fieldNames[0]];
 
-    //CellDataArray* allRfData = new CellDataArray(matRfData);
-    //CellDataArray* allLocData = new CellDataArray(matLocData);
-
     
     Volume* vol = new Volume(engine.get(), VolumeDims);
 
     std::cout << "Starting kernel" << std::endl;
 
     cudaError_t error = volumeReconstruction(vol, matRfData, matLocData);
-
     
-    matlab::data::TypedArray<float> myTypedArray = factory.createArray({ 201,201,134 }, vol->getData(), &(vol->getData()[201*201*134 -1]));
+    std::cout << "Saving data" << std::endl;
+    matlab::data::TypedArray<float> myTypedArray = factory.createArray(vol->getCounts(), vol->getData(), vol->end());
 
     std::u16string name = u"newTest";
  
@@ -100,11 +95,6 @@ int main()
     engine->eval(u"save('" + filePath + u"');");
 
     delete vol;
-
-    //delete allRfData;
-    //delete allLocData;
-
-    printf("Done\n");
 
     return 0;
 }

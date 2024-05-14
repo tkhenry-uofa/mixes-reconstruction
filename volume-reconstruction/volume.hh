@@ -30,48 +30,29 @@ public:
 
 	~Volume();
 
-	size_t getCount() const
-	{
-		return (_xCount * _yCount * _zCount);
-	}
 
-	float* getData() const
-	{
-		return _data;
-	}
-
-	VolumeDims getDims() const
-	{
-		return _dims;
-	}
-
-	size_t getXCount() const
-	{
-		return _xCount;
-	}
-
-	size_t getYCount() const
-	{
-		return _yCount;
-	}
-
-	size_t getZCount() const
-	{
-		return _zCount;
-	}
+	float* getData() const { return _data; }
+	const float* end() const { return _end; }
 	
-	// TODO: Move these back to private
-	std::vector<float> _xRange;
-	std::vector<float> _yRange;
-	std::vector<float> _zRange;
+	
+	VolumeDims getDims() const { return _dims; }
 
+	std::vector<size_t> getCounts() const { return { _xCount, _yCount, _zCount }; }
+	size_t getCount() const { return _elementCount; }
+	size_t getXCount() const { return _xCount; }
+	size_t getYCount() const { return _yCount; }
+	size_t getZCount() const { return _zCount; }
+
+	const float* getXRange() const { return _xRange.data(); }
+	const float* getYRange() const { return _yRange.data(); }
+	const float* getZRange() const { return _zRange.data(); }
+	
 
 private:
 
 	// _data owns the memory, _dataArray and _matlabArray will point at the same location
 	float* _data;
-	float*** _dataArray;
-	matlab::data::TypedArray<float>* _matlabArray;
+	float* _end;
 
 	VolumeDims _dims;
 	
@@ -80,6 +61,11 @@ private:
 	size_t _xCount;
 	size_t _yCount;
 	size_t _zCount;
+	size_t _elementCount;
+
+	std::vector<float> _xRange;
+	std::vector<float> _yRange;
+	std::vector<float> _zRange;
 
 	
 };
