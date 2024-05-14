@@ -79,8 +79,6 @@ int main()
     
     Volume* vol = new Volume(engine.get(), VolumeDims);
 
-    std::cout << "Starting kernel" << std::endl;
-
     cudaError_t error = volumeReconstruction(vol, matRfData, matLocData);
     
     std::cout << "Saving data" << std::endl;
@@ -91,8 +89,11 @@ int main()
     std::u16string filePath = uR"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\testVolume.mat)";
     engine->setVariable(name, myTypedArray);
 
-
     engine->eval(u"save('" + filePath + u"');");
+
+
+    std::cout << "Press any key to exit." << std::endl;
+    std::cin;
 
     delete vol;
 

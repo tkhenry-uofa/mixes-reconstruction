@@ -1,6 +1,4 @@
 ﻿
-
-
 #include <stdio.h>
 #include <string>
 #include <vector>
@@ -54,10 +52,10 @@ __global__ void delayAndSum(const float* rfData,const float* locData, const GpuC
             ezPos = locData[3 * (t * constants->elementCount + e) + 2];
 
             // voxel to rx element
-            distance = sqrtf(powf(xPos - exPos, 2) + powf(yPos - eyPos, 2) + powf(zPos - ezPos, 2));
+            distance = sqrtf(powf(xPos - exPos, 2) + powf(yPos - eyPos, 2) + powf(zPos - ezPos, 2)) + zPos;
 
             // tx element to voxel (only valid for plane waves under the shadow)
-            distance = distance + zPos;
+           // distance = distance + zPos;
 
             scanIndex = (int)roundf(distance * Fs/Speed);
 
@@ -73,6 +71,72 @@ __global__ void delayAndSum(const float* rfData,const float* locData, const GpuC
     volume[voxelId] = voxel;
 
 }
+
+__global__ void delayAndSumFast(const float* rfData, const float* locData, const GpuConstants* constants, const float* xRange, const float* yRange, const float* zRange, float* volume)
+{
+
+    int xLength = 26;
+
+    int yLength = 26;
+
+    int e = (int)floorf(blockIdx.x/xLength);
+
+    // xyz dims 201, 201, 134 
+    int tx = threadIdx.x + (blockIdx.x % xLength) * 8;
+    int ty = threadIdx.y + blockIdx.y * 8;
+    int tz = threadIdx.z + blockIdx.z * 8;
+
+    const float Speed = 1.540f;
+    const float Fs = 100000.0f; // 100 MHz
+
+    if (tx >= 201 || ty >= 201 || tz >= 134)
+    {
+        return;
+    }
+
+    int voxelId = tz * constants->xCount * constants->yCount + ty * constants->xCount + tx;
+
+    float voxel = volume[voxelId];
+    float xPos = xRange[tx];
+    float yPos = yRange[ty];
+    float zPos = zRange[tz];
+
+    float distance;
+    int scanIndex;
+    float exPos, eyPos, ezPos;
+    
+    for (int t = 0; t < constants->transmissionCount; t++)
+    {
+        exPos = locData[3 * (t * constants->elementCount + e)];
+        eyPos = locData[3 * (t * constants->elementCount + e) + 1];
+        ezPos = locData[3 * (t * constants->elementCount + e) + 2];
+
+        // voxel to rx element
+        distance = sqrtf(powf(xPos - exPos, 2) + powf(yPos - eyPos, 2) + powf(zPos - ezPos, 2)) + zPos;
+
+        // tx element to voxel (only valid for plane waves under the shadow)
+        // distance = distance + zPos;
+
+        scanIndex = (int)floorf(distance * Fs / Speed);
+
+        if (scanIndex >= (constants->rfSampleCount * constants->elementCount * constants->transmissionCount))
+        {
+            continue;
+        }
+
+        float scan = rfData[t * constants->rfSampleCount * constants->elementCount + e * constants->rfSampleCount + scanIndex];
+
+        atomicAdd(&voxel, scan);
+
+        //voxel = voxel + scan;
+    }
+
+    volume[voxelId] = voxel;
+
+}
+
+
+
 
 
 void
@@ -111,12 +175,17 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
         rfDims[1],
         rfDims[2] };
 
+    int count;
+    cudaGetDeviceCount(&count);
+    std::cout << count << std::endl;
+
     // Transfer data to device
     {
+        std::cout << "Allocating GPU memory" << std::endl;
         // Choose which GPU to run on, change this on a multi-GPU system.
         cudaStatus = cudaSetDevice(0);
         if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "Failed to connect GPU\n");
+            fprintf(stderr, "Failed to connect to GPU\n");
             cleanupMemory(deviceData, dConstants);
         }
 
@@ -163,6 +232,8 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
             cleanupMemory(deviceData, dConstants);
         }
 
+        std::cout << "Transferring data to GPU" << std::endl;
+
         // Copy input vectors from host memory to GPU buffers.
         cudaStatus = cudaMemcpy(dRfData, (void*)&rfData.begin()[0], rfData.getNumberOfElements() * sizeof(float), cudaMemcpyHostToDevice);
         if (cudaStatus != cudaSuccess) {
@@ -188,13 +259,13 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
             cleanupMemory(deviceData, dConstants);
         }
 
-        cudaStatus = cudaMemcpy(dYPositions, volume->getXRange(), volume->getYCount() * sizeof(float), cudaMemcpyHostToDevice);
+        cudaStatus = cudaMemcpy(dYPositions, volume->getYRange(), volume->getYCount() * sizeof(float), cudaMemcpyHostToDevice);
         if (cudaStatus != cudaSuccess) {
             fprintf(stderr, "Failed to copy constants to device\n");
             cleanupMemory(deviceData, dConstants);
         }
 
-        cudaStatus = cudaMemcpy(dZPositions, volume->getXRange(), volume->getZCount() * sizeof(float), cudaMemcpyHostToDevice);
+        cudaStatus = cudaMemcpy(dZPositions, volume->getZRange(), volume->getZCount() * sizeof(float), cudaMemcpyHostToDevice);
         if (cudaStatus != cudaSuccess) {
             fprintf(stderr, "Failed to copy constants to device\n");
             cleanupMemory(deviceData, dConstants);
@@ -203,40 +274,42 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
 
     dim3 threadDim(8, 8, 8);
     dim3 blockDim(26, 26, 17);
+    dim3 blockDim2(26*508, 26, 17);
+    std::cout << "Starting kernel" << std::endl;
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    delayAndSum<<< blockDim,threadDim>>>(dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
+    //delayAndSum<<<blockDim,threadDim>>>(dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
 
+    delayAndSumFast<< <blockDim2, threadDim >> > (dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
+
+    // Transfer Data back
+    // Check for any errors launching the kernel
+    cudaStatus = cudaGetLastError();
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+        cleanupMemory(deviceData, dConstants);
+    }
+
+    // cudaDeviceSynchronize waits for the kernel to finish, and returns
+    // any errors encountered during the launch.
+    cudaStatus = cudaDeviceSynchronize();
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
 
     // Print the elapsed time
     std::cout << "Kernel duration: " << elapsed.count() << " seconds" << std::endl;
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after calling kernel\n", cudaStatus);
+        cleanupMemory(deviceData, dConstants);
+    }
 
-    // Transfer Data back
-    {
-        // Check for any errors launching the kernel
-        cudaStatus = cudaGetLastError();
-        if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-            cleanupMemory(deviceData, dConstants);
-        }
 
-        // cudaDeviceSynchronize waits for the kernel to finish, and returns
-        // any errors encountered during the launch.
-        cudaStatus = cudaDeviceSynchronize();
-        if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "cudaDeviceSynchronize returned error code %d after calling kernel\n", cudaStatus);
-            cleanupMemory(deviceData, dConstants);
-        }
-
-        // Copy output vector from GPU buffer to host memory.
-        cudaStatus = cudaMemcpy(volume->getData(), dVolume, volume->getCount() * sizeof(float), cudaMemcpyDeviceToHost);
-        if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "Failed to copy volume data out of device\n");
-            cleanupMemory(deviceData, dConstants);
-        }
+    // Copy output vector from GPU buffer to host memory.
+    cudaStatus = cudaMemcpy(volume->getData(), dVolume, volume->getCount() * sizeof(float), cudaMemcpyDeviceToHost);
+    if (cudaStatus != cudaSuccess) {
+        fprintf(stderr, "Failed to copy volume data out of device\n");
+        cleanupMemory(deviceData, dConstants);
     }
 
 
