@@ -1,3 +1,5 @@
+#include <cstring>
+
 #include "volume.hh"
 
 Volume::Volume(me::MATLABEngine* engine, const VolumeDims& dims): 
@@ -19,7 +21,8 @@ Volume::Volume(me::MATLABEngine* engine, const VolumeDims& dims):
     _yCount = _yRange.size();
     _zCount = _zRange.size();
 
-    _data = new float[_xCount * _yCount * _zCount] {0};
+    _data = new float[_xCount * _yCount * _zCount];
+    memset(_data, 0, _xCount * _yCount * _zCount * sizeof(float));
 
 }
 

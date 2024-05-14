@@ -17,7 +17,7 @@ public:
 		return _cellCount * _rowCount * _columnCount;
 	}
 
-	float* getData() const { return &_data[0][0]; }
+	float* getData() const { return _data; }
 
 	size_t getCellCount() const { return _cellCount; }
 
@@ -28,8 +28,10 @@ public:
 
 private:
 
-	float** _data;
+	std::unique_ptr<matlab::data::Array[]> _dataArray;
+	float* _data;
 
+	size_t _totalCount;
 	size_t _cellCount;
 	size_t _rowCount;
 	size_t _columnCount;

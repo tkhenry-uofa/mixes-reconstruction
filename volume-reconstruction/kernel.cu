@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 #include "kernel.hh"
 
@@ -13,9 +14,9 @@ struct GpuConstants {
     const int yCount;
     const int zCount;
     const int voxelCount;
-    const int transmissionCount;
-    const int elementCount;
     const int rfSampleCount;
+    const int elementCount;
+    const int transmissionCount;
 };
 
 
@@ -29,21 +30,21 @@ __global__ void addKernel(int* c, const int* a, const int* b)
 __global__ void delayAndSum(const float* rfData,const float* locData, const GpuConstants* constants, const float* xRange, const float* yRange, const float *zRange, float* volume)
 {
     // xyz dims 201, 201, 134 
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
-    int tz = threadIdx.z;
+    int tx = threadIdx.x + blockIdx.x * 8;
+    int ty = threadIdx.y + blockIdx.y * 8;
+    int tz = threadIdx.z + blockIdx.z * 8;
 
-    const float Speed = 1540;
-    const float Fs = 100000000; // 100 MHz
+    const float Speed = 1.540f;
+    const float Fs = 100000.0f; // 100 MHz
     
-    if (tx != 101 || ty >= 201 || tz >= 134)
+    if (tx >= 201 || ty >= 201 || tz >= 134)
     {
         return;
     }
 
-    int voxelId = (tx * constants->yCount * constants->zCount) + (ty * constants->zCount) + tz;
+    int voxelId = tz * constants->xCount * constants->yCount + ty * constants->xCount + tx;
 
-    float* voxel = &volume[ voxelId ];
+    float voxel = volume[ voxelId ];
     float xPos = xRange[tx];
     float yPos = yRange[ty];
     float zPos = zRange[tz];
@@ -65,20 +66,22 @@ __global__ void delayAndSum(const float* rfData,const float* locData, const GpuC
             // tx element to voxel (only valid for plane waves under the shadow)
             distance = distance + zPos;
 
-            scanIndex = roundf(distance / (Speed * Fs));
+            scanIndex = (int)roundf(distance * Fs/Speed);
 
-            if (scanIndex >= constants->rfSampleCount)
+            if (scanIndex >= (constants->rfSampleCount * constants->elementCount * constants->transmissionCount ))
             {
                 continue;
             }
 
-            *voxel = *voxel + rfData[t * constants->rfSampleCount + scanIndex];
+            voxel = voxel + rfData[t * constants->rfSampleCount * constants->elementCount + e * constants->rfSampleCount + scanIndex];
         }
     }
 
+    volume[voxelId] = voxel;
+
 }
 
-cudaError_t volumeReconstruction(Volume* volume, const CellDataArray& rfData, const CellDataArray& locData)
+cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rfData, const md::TypedArray<float>& locData)
 {
     float* dRfData = 0;
     float* dLocData = 0;
@@ -90,15 +93,16 @@ cudaError_t volumeReconstruction(Volume* volume, const CellDataArray& rfData, co
     float* dYPositions = 0;
     float* dZPositions = 0;
 
+    std::vector<size_t> rfDims = rfData.getDimensions();
 
     GpuConstants constants = {
         volume->getXCount(),
         volume->getYCount(),
         volume->getZCount(),
         volume->getCount(),
-        rfData.getCellCount(),
-        rfData.getColumnCount(),
-        rfData.getRowCount() };
+        rfDims[0],
+        rfDims[1],
+        rfDims[2] };
 
     // Choose which GPU to run on, change this on a multi-GPU system.
     cudaStatus = cudaSetDevice(0);
@@ -108,13 +112,13 @@ cudaError_t volumeReconstruction(Volume* volume, const CellDataArray& rfData, co
     }
 
     // Malloc arrays on GPU
-    cudaStatus = cudaMalloc((void**)&dRfData, rfData.getCount() * sizeof(float));
+    cudaStatus = cudaMalloc((void**)&dRfData, rfData.getNumberOfElements() * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "Failed to allocate rf array on device\n");
         goto Error;
     }
 
-    cudaStatus = cudaMalloc((void**)&dLocData, locData.getCount() * sizeof(float));
+    cudaStatus = cudaMalloc((void**)&dLocData, locData.getNumberOfElements() * sizeof(float));
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "Failed to allocate location array on device\n");
         goto Error;
@@ -150,16 +154,14 @@ cudaError_t volumeReconstruction(Volume* volume, const CellDataArray& rfData, co
         goto Error;
     }
 
-
-
     // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dRfData, rfData.getData(), rfData.getCount() * sizeof(float), cudaMemcpyHostToDevice);
+    cudaStatus = cudaMemcpy(dRfData, (void*)&rfData.begin()[0], rfData.getNumberOfElements() * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "Failed to copy RF data to device\n");
         goto Error;
     }
 
-    cudaStatus = cudaMemcpy(dLocData, locData.getData(), locData.getCount() * sizeof(float), cudaMemcpyHostToDevice);
+    cudaStatus = cudaMemcpy(dLocData, (void*)&locData.begin()[0], locData.getNumberOfElements() * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "Failed to copy location data to device\n");
         goto Error;
@@ -183,14 +185,25 @@ cudaError_t volumeReconstruction(Volume* volume, const CellDataArray& rfData, co
         goto Error;
     }
 
-    cudaStatus = cudaMemcpy(dZPositions, volume->_xRange.data(), 134 * sizeof(float), cudaMemcpyHostToDevice);
+    cudaStatus = cudaMemcpy(dZPositions, volume->_zRange.data(), 134 * sizeof(float), cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
         fprintf(stderr, "Failed to copy constants to device\n");
         goto Error;
     }
 
-    // KERNEL
+    dim3 threadDim(8, 8, 8);
+    dim3 blockDim(26, 26, 17);
 
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // KERNEL
+    delayAndSum<<< blockDim,threadDim>>>(dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+
+    // Print the elapsed time
+    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
 
     // Check for any errors launching the kernel
     cudaStatus = cudaGetLastError();

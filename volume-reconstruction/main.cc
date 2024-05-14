@@ -71,32 +71,38 @@ int main()
     std::vector<std::string> fieldNames;
     for (; currentValue != fileRange.end(); currentValue++)
     {
+        
         fieldNames.push_back(*currentValue);
     }
 
-    md::CellArray matRfData = (*fileContents)[0][fieldNames[0]];
-    md::CellArray matLocData = (*fileContents)[0][fieldNames[1]];
+    md::TypedArray<float> matRfData = (*fileContents)[0][fieldNames[1]];
+    md::TypedArray<float> matLocData = (*fileContents)[0][fieldNames[0]];
 
-    CellDataArray* allRfData = new CellDataArray(matRfData);
-    CellDataArray* allLocData = new CellDataArray(matLocData);
+    //CellDataArray* allRfData = new CellDataArray(matRfData);
+    //CellDataArray* allLocData = new CellDataArray(matLocData);
 
     
     Volume* vol = new Volume(engine.get(), VolumeDims);
+
+    std::cout << "Starting kernel" << std::endl;
+
+    cudaError_t error = volumeReconstruction(vol, matRfData, matLocData);
+
     
     matlab::data::TypedArray<float> myTypedArray = factory.createArray({ 201,201,134 }, vol->getData(), &(vol->getData()[201*201*134 -1]));
 
-    std::u16string name = u"volumeTest";
+    std::u16string name = u"newTest";
  
     std::u16string filePath = uR"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\testVolume.mat)";
     engine->setVariable(name, myTypedArray);
 
 
-    engine->eval(u"save('" + filePath + u");");
+    engine->eval(u"save('" + filePath + u"');");
 
     delete vol;
 
-    delete allRfData;
-    delete allLocData;
+    //delete allRfData;
+    //delete allLocData;
 
     printf("Done\n");
 

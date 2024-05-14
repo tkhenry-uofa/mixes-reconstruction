@@ -8,4 +8,4 @@
 
 
 
-cudaError_t volumeReconstruction(Volume* volume, const CellDataArray& rfData, const CellDataArray& locData);
+cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rfData, const md::TypedArray<float>& locData);
