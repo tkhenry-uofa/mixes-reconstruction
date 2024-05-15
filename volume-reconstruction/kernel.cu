@@ -17,7 +17,11 @@ struct GpuConstants {
     const size_t transmissionCount;
 };
 
-
+/*
+*
+*
+* 
+*/
 __global__ void delayAndSum(const float* rfData,const float* locData, const GpuConstants* constants, const float* xRange, const float* yRange, const float *zRange, float* volume)
 {
     // xyz dims 201, 201, 134 
@@ -74,37 +78,33 @@ __global__ void delayAndSum(const float* rfData,const float* locData, const GpuC
 
 __global__ void delayAndSumFast(const float* rfData, const float* locData, const GpuConstants* constants, const float* xRange, const float* yRange, const float* zRange, float* volume)
 {
+    __shared__ float temp[508 * 4];
 
-    int xLength = 26;
+    int tempSize = 508;
+    
+    int e = threadIdx.x;
 
-    int yLength = 26;
-
-    int e = (int)floorf(blockIdx.x/xLength);
-
-    // xyz dims 201, 201, 134 
-    int tx = threadIdx.x + (blockIdx.x % xLength) * 8;
-    int ty = threadIdx.y + blockIdx.y * 8;
-    int tz = threadIdx.z + blockIdx.z * 8;
-
-    const float Speed = 1.540f;
-    const float Fs = 100000.0f; // 100 MHz
-
-    if (tx >= 201 || ty >= 201 || tz >= 134)
+    if (e >= 508)
     {
         return;
     }
 
-    int voxelId = tz * constants->xCount * constants->yCount + ty * constants->xCount + tx;
+    int x = blockIdx.x;
+    int y = blockIdx.y;
+    int z = blockIdx.z;
 
-    float voxel = volume[voxelId];
-    float xPos = xRange[tx];
-    float yPos = yRange[ty];
-    float zPos = zRange[tz];
+
+    const float Speed = 1.540f;
+    const float Fs = 100000.0f; // 100 MHz
+
+    float xPos = xRange[x];
+    float yPos = yRange[y];
+    float zPos = zRange[z];
 
     float distance;
     int scanIndex;
     float exPos, eyPos, ezPos;
-    
+
     for (int t = 0; t < constants->transmissionCount; t++)
     {
         exPos = locData[3 * (t * constants->elementCount + e)];
@@ -119,23 +119,32 @@ __global__ void delayAndSumFast(const float* rfData, const float* locData, const
 
         scanIndex = (int)floorf(distance * Fs / Speed);
 
-        if (scanIndex >= (constants->rfSampleCount * constants->elementCount * constants->transmissionCount))
-        {
-            continue;
-        }
+        temp[e] += rfData[t * constants->rfSampleCount * constants->elementCount + e * constants->rfSampleCount + scanIndex];
 
-        float scan = rfData[t * constants->rfSampleCount * constants->elementCount + e * constants->rfSampleCount + scanIndex];
-
-        atomicAdd(&voxel, scan);
 
         //voxel = voxel + scan;
     }
 
-    volume[voxelId] = voxel;
+    __syncthreads();
+    
+    for (int s = 1; s < tempSize; s *= 2)
+    {
+        int index = 2 * s * e;
 
+        if (index < (tempSize - s))
+        {
+            temp[index] += temp[index + s];
+        }
+        
+        __syncthreads();
+    }
+
+    if (e == 0)
+    {
+        volume[z * constants->xCount * constants->yCount + y * constants->xCount + x] = temp[0];
+    }
+    
 }
-
-
 
 
 
@@ -272,44 +281,45 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
         }
     }
 
-    dim3 threadDim(8, 8, 8);
-    dim3 blockDim(26, 26, 17);
-    dim3 blockDim2(26*508, 26, 17);
+    dim3 blockDim(8, 8, 8);
+    dim3 gridDim(26, 26, 17);
     std::cout << "Starting kernel" << std::endl;
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    //delayAndSum<<<blockDim,threadDim>>>(dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
+    delayAndSum<<<gridDim,blockDim>>>(dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
 
-    delayAndSumFast<< <blockDim2, threadDim >> > (dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
+    dim3 blockDim2(201, 201, 134);
+    delayAndSumFast<< <blockDim2, 512 >> > (dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
+    {
+        // Transfer Data back
+        // Check for any errors launching the kernel
+        cudaStatus = cudaGetLastError();
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+            cleanupMemory(deviceData, dConstants);
+        }
 
-    // Transfer Data back
-    // Check for any errors launching the kernel
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        cleanupMemory(deviceData, dConstants);
-    }
+        // cudaDeviceSynchronize waits for the kernel to finish, and returns
+        // any errors encountered during the launch.
+        cudaStatus = cudaDeviceSynchronize();
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
 
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-
-    // Print the elapsed time
-    std::cout << "Kernel duration: " << elapsed.count() << " seconds" << std::endl;
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after calling kernel\n", cudaStatus);
-        cleanupMemory(deviceData, dConstants);
-    }
+        // Print the elapsed time
+        std::cout << "Kernel duration: " << elapsed.count() << " seconds" << std::endl;
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "cudaDeviceSynchronize returned error code %d after calling kernel\n", cudaStatus);
+            cleanupMemory(deviceData, dConstants);
+        }
 
 
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(volume->getData(), dVolume, volume->getCount() * sizeof(float), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "Failed to copy volume data out of device\n");
-        cleanupMemory(deviceData, dConstants);
+        // Copy output vector from GPU buffer to host memory.
+        cudaStatus = cudaMemcpy(volume->getData(), dVolume, volume->getCount() * sizeof(float), cudaMemcpyDeviceToHost);
+        if (cudaStatus != cudaSuccess) {
+            fprintf(stderr, "Failed to copy volume data out of device\n");
+            cleanupMemory(deviceData, dConstants);
+        }
     }
 
 

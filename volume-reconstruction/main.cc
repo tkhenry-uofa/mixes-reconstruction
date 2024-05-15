@@ -7,7 +7,6 @@
 #include <MatlabDataArray.hpp>
 #include <MatlabEngine.hpp>
 
-#include "cellDataArray.hh"
 #include "volume.hh"
 #include "kernel.hh"
 

@@ -84,12 +84,10 @@
     <CudaCompile Include="kernel.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="cellDataArray.cc" />
     <ClCompile Include="main.cc" />
     <ClCompile Include="volume.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="cellDataArray.hh" />
     <ClInclude Include="kernel.hh" />
     <ClInclude Include="volume.hh" />
   </ItemGroup>

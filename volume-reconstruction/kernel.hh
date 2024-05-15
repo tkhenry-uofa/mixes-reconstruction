@@ -3,7 +3,6 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
-#include "cellDataArray.hh"
 #include "volume.hh"
 
 
