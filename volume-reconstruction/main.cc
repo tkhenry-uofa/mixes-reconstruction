@@ -32,7 +32,7 @@ int main()
 
     std::string dataRoot = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\)";
 
-    std::string dataPath = dataRoot + "psf_0050_16_scans.mat";
+    std::string dataPath = dataRoot + "psf_0050_16_scans2.mat";
 
     md::ArrayFactory factory;
 
@@ -66,14 +66,18 @@ int main()
     md::ForwardIterator<md::MATLABFieldIdentifier const> currentValue = fileRange.begin();
 
     std::vector<std::string> fieldNames;
+    int i = 0;
     for (; currentValue != fileRange.end(); currentValue++)
     {
-        
+
         fieldNames.push_back(*currentValue);
+        std::cout << fieldNames[i++] << std::endl;
+
     }
 
-    md::TypedArray<float> matRfData = (*fileContents)[0][fieldNames[1]];
-    md::TypedArray<float> matLocData = (*fileContents)[0][fieldNames[0]];
+    md::TypedArray<float> matRfData = (*fileContents)[0][fieldNames[0]];
+    md::TypedArray<float> matLocData = (*fileContents)[0][fieldNames[1]];
+
 
     
     Volume* vol = new Volume(engine.get(), VolumeDims);
@@ -89,10 +93,6 @@ int main()
     engine->setVariable(name, myTypedArray);
 
     engine->eval(u"save('" + filePath + u"');");
-
-
-    std::cout << "Press any key to exit." << std::endl;
-    std::cin;
 
     delete vol;
 
