@@ -66,7 +66,7 @@
 //
 //}
 
-__global__ void delayAndSumFast(const float* rfData, const float* locData, const float* xRange, const float* yRange, const float* zRange, float* volume, int sampleCount, int transmissionCount)
+__global__ void delayAndSumFast(const cudaPitchedPtr rfData, const cudaPitchedPtr locData, const float* xRange, const float* yRange, const float* zRange, float* volume, int sampleCount, int transmissionCount)
 {
     const int elementCount = 508;
     __shared__ float temp[elementCount];
@@ -89,18 +89,19 @@ __global__ void delayAndSumFast(const float* rfData, const float* locData, const
     float exPos, eyPos;
     for (int t = 0; t < transmissionCount; t++)
     {
-        exPos = locData[2 * (t + e * transmissionCount)];
-        eyPos = locData[2 * (t + e * transmissionCount) + 1];
+        exPos = ((float*)locData.ptr)[2 * (t + e * transmissionCount)];
+        eyPos = ((float*)locData.ptr)[2 * (t + e * transmissionCount) + 1];
 
         // voxel to rx element
         distance = norm3df(voxPos.x - exPos, voxPos.y - eyPos, voxPos.z) + voxPos.z;
+
 
         // tx element to voxel (only valid for plane waves under the shadow)
         // distance = distance + zPos;
 
         scanIndex = (int)floorf(distance * samplesPerMeter);
 
-        temp[e] += rfData[t * sampleCount * elementCount + e * sampleCount + scanIndex];
+        temp[e] += ((float*)rfData.ptr)[t * sampleCount * elementCount + e * sampleCount + scanIndex];
 
     }
 
@@ -130,36 +131,35 @@ __global__ void delayAndSumFast(const float* rfData, const float* locData, const
 
 
 void
-cleanupMemory(float* floats[6])
+cleanupMemory(std::vector<void*> arrays)
 {
-    for (int i = 0; i < 6; i++)
+    for (void* value : arrays)
     {
-        cudaFree(floats[i]);
+        cudaFree(value);
     }
 }
 
 cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rfData, const md::TypedArray<float>& locData)
 {
-    float* dRfData = 0;
-    float* dLocData = 0;
-    float* dVolume = 0;
+    cudaPitchedPtr dRfData;
+    cudaPitchedPtr dLocData;
+    float* dVolume = nullptr;
     
-    float* dXPositions = 0;
-    float* dYPositions = 0;
-    float* dZPositions = 0;
+    float* dXPositions = nullptr;
+    float* dYPositions = nullptr;
+    float* dZPositions = nullptr;
 
     cudaError_t cudaStatus;
 
-    float* deviceData[6] = { dRfData, dLocData, dVolume, dXPositions, dYPositions, dZPositions };
+    std::vector<void*> deviceData = { dVolume, dXPositions, dYPositions, dZPositions };
 
     std::vector<size_t> rfDims = rfData.getDimensions();
 
-    int sampleCount = rfDims[0];
-    int transmissionCount = rfDims[2];
+    unsigned int sampleCount = rfDims[0];
+    unsigned int elementCount = rfDims[1];
+    unsigned int transmissionCount = rfDims[2];
 
-    int count;
-    cudaGetDeviceCount(&count);
-    std::cout << count << std::endl;
+
 
     // Transfer data to device
     {
@@ -168,21 +168,26 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
         cudaStatus = cudaSetDevice(0);
         if (cudaStatus != cudaSuccess) {
             fprintf(stderr, "Failed to connect to GPU\n");
-            cleanupMemory(deviceData);
         }
 
-        // Malloc arrays on GPU
-        cudaStatus = cudaMalloc((void**)&dRfData, rfData.getNumberOfElements() * sizeof(float));
+        cudaExtent rfExtent = { rfDims[1] * sizeof(float), rfDims[0], rfDims[2] };
+        cudaStatus = cudaMalloc3D(&dRfData, rfExtent);
         if (cudaStatus != cudaSuccess) {
             fprintf(stderr, "Failed to allocate rf array on device\n");
             cleanupMemory(deviceData);
         }
 
-        cudaStatus = cudaMalloc((void**)&dLocData, locData.getNumberOfElements() * sizeof(float));
+        deviceData.push_back(dRfData.ptr);
+
+        std::vector<size_t> locDims = locData.getDimensions();
+        cudaExtent locExtent = { locDims[0] * sizeof(float), locDims[1], locDims[2] };
+        cudaStatus = cudaMalloc3D(&dLocData, locExtent);
         if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "Failed to allocate location array on device\n");
+            fprintf(stderr, "Failed to allocate rf array on device\n");
             cleanupMemory(deviceData);
         }
+
+        deviceData.push_back(dLocData.ptr);
 
         cudaStatus = cudaMalloc((void**)&dVolume, volume->getCount() * sizeof(float));
         if (cudaStatus != cudaSuccess) {
@@ -210,18 +215,6 @@ cudaError_t volumeReconstruction(Volume* volume, const md::TypedArray<float>& rf
 
         std::cout << "Transferring data to GPU" << std::endl;
 
-        // Copy input vectors from host memory to GPU buffers.
-        cudaStatus = cudaMemcpy(dRfData, (void*)&rfData.begin()[0], rfData.getNumberOfElements() * sizeof(float), cudaMemcpyHostToDevice);
-        if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "Failed to copy RF data to device\n");
-            cleanupMemory(deviceData);
-        }
-
-        cudaStatus = cudaMemcpy(dLocData, (void*)&locData.begin()[0], locData.getNumberOfElements() * sizeof(float), cudaMemcpyHostToDevice);
-        if (cudaStatus != cudaSuccess) {
-            fprintf(stderr, "Failed to copy location data to device\n");
-            cleanupMemory(deviceData);
-        }
 
         cudaStatus = cudaMemcpy(dXPositions, volume->getXRange(), volume->getXCount() * sizeof(float), cudaMemcpyHostToDevice);
         if (cudaStatus != cudaSuccess) {
