@@ -10,6 +10,9 @@
 #include "volume.hh"
 #include "kernel.hh"
 
+static const std::string loc_data_name = "allLocs";
+static const std::string rf_data_name = "allScans";
+
 static const float XMin = -15.0f / 1000;
 static const float XMax = 15.0f / 1000;
 
@@ -32,7 +35,7 @@ int main()
 
     std::string dataRoot = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\)";
 
-    std::string dataPath = dataRoot + "psf_0050_16_scans2.mat";
+    std::string dataPath = dataRoot + "psf_2_transmits.mat";
 
     md::ArrayFactory factory;
 
@@ -55,9 +58,9 @@ int main()
 
     size_t fieldCount = fileContents->getNumberOfFields();
 
-    if (fieldCount != 2)
+    if (fieldCount < 2)
     {
-        std::cerr << "Expected 2 fields in file, instead found " << fieldCount << std::endl;
+        std::cerr << "Expected at least 2 fields in file, instead found " << fieldCount << std::endl;
         return -1;
     }
 
@@ -65,31 +68,50 @@ int main()
 
     md::ForwardIterator<md::MATLABFieldIdentifier const> currentValue = fileRange.begin();
 
-    std::vector<std::string> fieldNames;
     int i = 0;
+    std::string fieldName;
+    bool have_rf_data = false;
+    bool have_loc_data = false;
+    std::cout << "Found matlab variables:" << std::endl;
     for (; currentValue != fileRange.end(); currentValue++)
     {
+        fieldName = *currentValue;
+        std::cout << "    " << fieldName << std::endl;
 
-        fieldNames.push_back(*currentValue);
-        std::cout << fieldNames[i++] << std::endl;
-
+        if (fieldName == rf_data_name)
+        {
+            have_rf_data = true;
+        }
+        else if (fieldName == loc_data_name)
+        {
+            have_loc_data = true;
+        }
     }
 
-    md::TypedArray<float> matRfData = (*fileContents)[0][fieldNames[0]];
-    md::TypedArray<float> matLocData = (*fileContents)[0][fieldNames[1]];
+    if (!have_rf_data )
+    {
+        std::cerr << "Cannot find rf data '" << rf_data_name << "'" << std::endl;
+        return -1;
+    }
+    else if (!have_loc_data)
+    {
+        std::cerr << "Cannot find element location data '" << loc_data_name << "'" << std::endl;
+        return -1;
+    }
 
+    md::TypedArray<std::complex<float>> matRfData = (*fileContents)[0][rf_data_name];
+    md::TypedArray<float> matLocData = (*fileContents)[0][loc_data_name];
 
-    
     Volume* vol = new Volume(engine.get(), VolumeDims);
 
-    cudaError_t error = volumeReconstruction(vol, matRfData, matLocData);
+    cudaError_t error = complexVolumeReconstruction(vol, matRfData, matLocData);
     
     std::cout << "Saving data" << std::endl;
     matlab::data::TypedArray<float> myTypedArray = factory.createArray(vol->getCounts(), vol->getData(), vol->end());
 
-    std::u16string name = u"newTest";
+    std::u16string name = u"volume";
  
-    std::u16string filePath = uR"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\testVolume.mat)";
+    std::u16string filePath = uR"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\beamformed_volume.mat)";
     engine->setVariable(name, myTypedArray);
 
     engine->eval(u"save('" + filePath + u"');");

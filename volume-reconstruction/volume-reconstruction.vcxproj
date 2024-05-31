@@ -82,6 +82,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <CudaCompile Include="kernel.cu" />
+    <CudaCompile Include="complex_kernel.cu" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cc" />
