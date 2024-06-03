@@ -5,10 +5,28 @@
 #include <iostream>
 #include <chrono>
 #include <cuda/std/complex>
+#include <math_constants.h>
 
 #include "kernel.hh"
 
+__device__ float calculateAprodization(float3 voxPosition, float3 elePosition)
+{
+    const float aproCutoff = 0.4f;
 
+    float xRatio = abs((voxPosition.x - elePosition.x) / (voxPosition.z - elePosition.z));
+    float yRatio = abs((voxPosition.y - elePosition.y) / (voxPosition.z - elePosition.z));
+
+    float xApro = powf(cosf(CUDART_PI_F * xRatio),2);
+    xApro = xApro * (xRatio > aproCutoff);
+
+    float yApro = powf(cosf(CUDART_PI_F * xRatio),2);
+    yApro = yApro * (yRatio > aproCutoff);
+
+    return xApro * yApro;
+}
+
+// Blocks = voxels
+// Threads = rx elements
 __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData, const float* xRange, const float* yRange, const float* zRange, float* volume, int sampleCount, int transmissionCount)
 {
     const int elementCount = 508;
@@ -33,10 +51,14 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
     int scanIndex;
     float exPos, eyPos;
     cuda::std::complex<float> value;
+    
+    // Beamform this voxel per element 
     for (int t = 0; t < transmissionCount; t++)
     {
         exPos = locData[2 * (t + e * transmissionCount)];
         eyPos = locData[2 * (t + e * transmissionCount) + 1];
+
+        float apro = calculateAprodization(voxPos, { exPos, eyPos, 0.0f });
 
         // voxel to rx element
         distance = norm3df(voxPos.x - exPos, voxPos.y - eyPos, voxPos.z) + voxPos.z;
@@ -48,7 +70,7 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
 
         value = rfData[t * sampleCount * elementCount + e * sampleCount + scanIndex];
 
-        temp[e] += value;
+        temp[e] += value*apro;
 
     }
 
@@ -70,9 +92,7 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
 
     if (e == 0)
     {
-
-        float zero = 0.0f;
-        float value = norm3df(temp[0].real(), temp[0].imag(),zero);
+        float value = norm3df(temp[0].real(), temp[0].imag(),0.0f);
         volume[blockIdx.z * gridDim.x * gridDim.y + blockIdx.y * gridDim.x + blockIdx.x] = value;
     }
     
@@ -202,16 +222,14 @@ cudaError_t complexVolumeReconstruction(Volume* volume, const md::TypedArray<std
         }
     }
 
-    dim3 blockDim(8, 8, 8);
-    dim3 gridDim(26, 26, 17);
     std::cout << "Starting kernel" << std::endl;
 
     auto start = std::chrono::high_resolution_clock::now();
 
     //delayAndSum<<<gridDim,blockDim>>>(dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
 
-    dim3 gridDim2(201, 201, 134);
-    complexDelayAndSum<< <gridDim2, 512 >> > (dRfData, dLocData, dXPositions, dYPositions, dZPositions, dVolume, sampleCount, transmissionCount);
+    dim3 gridDim(volume->getXCount(), volume->getYCount(), volume->getZCount());
+    complexDelayAndSum<< <gridDim, 512 >> > (dRfData, dLocData, dXPositions, dYPositions, dZPositions, dVolume, sampleCount, transmissionCount);
     {
         // Transfer Data back
         // Check for any errors launching the kernel
