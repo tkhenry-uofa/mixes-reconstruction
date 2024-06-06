@@ -9,20 +9,34 @@
 
 #include "kernel.hh"
 
+// Anything more than half the diagonal diameter of the array doesn't contribute
+#define MAX_LATERAL_RANGE 0.039116F 
+#define INV_MAX_LATERAL_RANGE 25.5650F 
+
+/**
+* Calculates a hann aprodization based on the lateral distance to the element
+* Anything further than the distance from the middle of the array to the corner gets zeroed
+*/
 __device__ float calculateAprodization(float3 voxPosition, float3 elePosition)
 {
-    const float aproCutoff = 0.4f;
 
-    float xRatio = abs((voxPosition.x - elePosition.x) / (voxPosition.z - elePosition.z));
-    float yRatio = abs((voxPosition.y - elePosition.y) / (voxPosition.z - elePosition.z));
+    float x_dist = abs(voxPosition.x - elePosition.x);
+    float y_dist = abs(voxPosition.y - elePosition.y);
 
-    float xApro = powf(cosf(CUDART_PI_F * xRatio),2);
-    xApro = xApro * (xRatio > aproCutoff);
+    // Get the lateral distance between the voxel and the element
+    float lateral_dist = sqrtf(powf(x_dist, 2) + powf(y_dist, 2));
 
-    float yApro = powf(cosf(CUDART_PI_F * xRatio),2);
-    yApro = yApro * (yRatio > aproCutoff);
+    // Normalize and shift to map 0 to the peak of the window and 1 to the left end
+    lateral_dist = lateral_dist * INV_MAX_LATERAL_RANGE;
 
-    return xApro * yApro;
+    // Everything >= 1 gets set to zero
+    lateral_dist = (lateral_dist > 1.0f) ? 1.0f : lateral_dist;
+
+    lateral_dist = (lateral_dist / 2) + 0.5f;
+
+    float apro = powf(sinf(CUDART_PI_F * lateral_dist), 2);
+
+    return apro;
 }
 
 // Blocks = voxels
@@ -42,8 +56,8 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
     }
     temp[e] = 0.0f;
 
-    // const float samplesPerMeter = 64935.0f; // Fs/c 100 MHz, 1540 m/s
-    const float samplesPerMeter = 32467.5f; // 50 MHz
+   // const float samplesPerMeter = 64935.0f; // Fs/c 100 MHz, 1540 m/s
+    //const float samplesPerMeter = 32467.5f; // 50 MHz
 
     const float3 voxPos = { xRange[blockIdx.x], yRange[blockIdx.y], zRange[blockIdx.z] };
     
