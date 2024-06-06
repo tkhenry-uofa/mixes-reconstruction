@@ -32,9 +32,10 @@ __device__ float calculateAprodization(float3 voxPosition, float3 elePosition)
     // Everything >= 1 gets set to zero
     lateral_dist = (lateral_dist > 1.0f) ? 1.0f : lateral_dist;
 
-    lateral_dist = (lateral_dist / 2) + 0.5f;
+    // Compress to 0-0.5
+    lateral_dist = lateral_dist / 2;
 
-    float apro = powf(sinf(CUDART_PI_F * lateral_dist), 2);
+    float apro = powf(cosf(CUDART_PI_F * lateral_dist), 2);
 
     return apro;
 }
@@ -46,9 +47,10 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
     const int elementCount = 508;
     __shared__ cuda::std::complex<float> temp[elementCount];
     
+    const int pulse_delay = 31; // Samples to delay 
+
     int e = threadIdx.x;
 
-    int2 test;
 
     if (e >= elementCount)
     {
@@ -57,10 +59,11 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
     temp[e] = 0.0f;
 
    // const float samplesPerMeter = 64935.0f; // Fs/c 100 MHz, 1540 m/s
-    //const float samplesPerMeter = 32467.5f; // 50 MHz
+    const float samplesPerMeter = 32467.5f; // 50 MHz
 
     const float3 voxPos = { xRange[blockIdx.x], yRange[blockIdx.y], zRange[blockIdx.z] };
     
+    const float z_src = 0.006f;
     float distance;
     int scanIndex;
     float exPos, eyPos;
@@ -75,12 +78,17 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
         float apro = calculateAprodization(voxPos, { exPos, eyPos, 0.0f });
 
         // voxel to rx element
-        distance = norm3df(voxPos.x - exPos, voxPos.y - eyPos, voxPos.z) + voxPos.z;
+        distance = norm3df(voxPos.x - exPos, voxPos.y - eyPos, voxPos.z);
+
+        // Plane wave
+        //distance = distance + voxPos.z;
+
+        distance = distance + sqrt(powf(z_src - voxPos.z, 2) + powf(voxPos.x, 2));
 
         // tx element to voxel (only valid for plane waves under the shadow)
         // distance = distance + zPos;
 
-        scanIndex = (int)floorf(distance * samplesPerMeter);
+        scanIndex = (int)floorf(distance * samplesPerMeter + pulse_delay);
 
         value = rfData[t * sampleCount * elementCount + e * sampleCount + scanIndex];
 

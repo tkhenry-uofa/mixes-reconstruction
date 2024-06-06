@@ -22,7 +22,7 @@ static const float YMax = 5.0f / 1000;
 static const float ZMin = 30.0f / 1000;
 static const float ZMax = 60.0f / 1000;
 
-static const float Resolution = 0.00015f;
+static const float Resolution = 0.0003f;
 
 static const Volume::VolumeDims VolumeDims = { XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution };
 
@@ -35,7 +35,7 @@ int main()
 
     std::string dataRoot = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\)";
 
-    std::string dataPath = dataRoot + "cyst_100k.mat";
+    std::string dataPath = dataRoot + "cyst_600k.mat";
 
     md::ArrayFactory factory;
 
@@ -111,7 +111,7 @@ int main()
 
     std::u16string name = u"volume";
  
-    std::u16string filePath = uR"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\cyst_100k_beamformed.mat)";
+    std::u16string filePath = uR"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\cyst_600k_beamformed.mat)";
     engine->setVariable(name, myTypedArray);
 
     engine->eval(u"save('" + filePath + u"');");
