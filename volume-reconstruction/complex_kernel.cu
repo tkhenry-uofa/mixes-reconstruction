@@ -88,12 +88,12 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
         // Plane wave
         //distance = distance + voxPos.z;
 
-        tx_distance += sqrt(powf(z_src - voxPos.z, 2) + powf(voxPos.x, 2)) + z_src;
+        tx_distance = sqrt(powf(z_src - voxPos.z, 2) + powf(voxPos.x, 2)) + z_src;
 
-        scanIndex = (int)floorf((rx_distance + tx_distance) * samplesPerMeter + pulse_delay);
+        scanIndex = lroundf((rx_distance + tx_distance) * samplesPerMeter + pulse_delay);
 
-        value = rfData[t * sampleCount * elementCount + e * sampleCount + scanIndex] * (tx_distance/max_dist);
-
+        value = rfData[(t * sampleCount * elementCount) + (e * sampleCount) + scanIndex-1];
+        value = value * tx_distance / max_dist;
         temp[e] += value*apro;
 
     }
