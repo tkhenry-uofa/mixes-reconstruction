@@ -9,9 +9,13 @@
 
 #include "kernel.hh"
 
-// Anything more than half the diagonal diameter of the array doesn't contribute
+// Half array
+/*#define MAX_LATERAL_RANGE 0.039116F 
+#define INV_MAX_LATERAL_RANGE 25.5650F*/ 
+
+// Full array
 #define MAX_LATERAL_RANGE 0.039116F 
-#define INV_MAX_LATERAL_RANGE 25.5650F 
+#define INV_MAX_LATERAL_RANGE 12.782493097453727F 
 
 /**
 * Calculates a hann aprodization based on the lateral distance to the element
@@ -42,7 +46,7 @@ __device__ float calculateAprodization(float3 voxPosition, float3 elePosition)
 
 // Blocks = voxels
 // Threads = rx elements
-__global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData, const float* xRange, const float* yRange, const float* zRange, float* volume, int sampleCount, int transmissionCount)
+__global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData, const float* xRange, const float* yRange, const float* zRange, float* volume, int sampleCount, int transmissionCount, float max_dist)
 {
     const int elementCount = 508;
     __shared__ cuda::std::complex<float> temp[elementCount];
@@ -64,9 +68,10 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
     const float3 voxPos = { xRange[blockIdx.x], yRange[blockIdx.y], zRange[blockIdx.z] };
     
     const float z_src = -0.006f;
-    float distance;
+    float rx_distance;
     int scanIndex;
     float exPos, eyPos;
+    float tx_distance;
     cuda::std::complex<float> value;
     
     // Beamform this voxel per element 
@@ -78,16 +83,16 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
         float apro = calculateAprodization(voxPos, { exPos, eyPos, 0.0f });
 
         // voxel to rx element
-        distance = norm3df(voxPos.x - exPos, voxPos.y - eyPos, voxPos.z);
+        rx_distance = norm3df(voxPos.x - exPos, voxPos.y - eyPos, voxPos.z);
 
         // Plane wave
         //distance = distance + voxPos.z;
 
-        distance += sqrt(powf(z_src - voxPos.z, 2) + powf(voxPos.x, 2)) + z_src;
+        tx_distance += sqrt(powf(z_src - voxPos.z, 2) + powf(voxPos.x, 2)) + z_src;
 
-        scanIndex = (int)floorf(distance * samplesPerMeter + pulse_delay);
+        scanIndex = (int)floorf((rx_distance + tx_distance) * samplesPerMeter + pulse_delay);
 
-        value = rfData[t * sampleCount * elementCount + e * sampleCount + scanIndex];
+        value = rfData[t * sampleCount * elementCount + e * sampleCount + scanIndex] * (tx_distance/max_dist);
 
         temp[e] += value*apro;
 
@@ -245,10 +250,14 @@ cudaError_t complexVolumeReconstruction(Volume* volume, const md::TypedArray<std
 
     auto start = std::chrono::high_resolution_clock::now();
 
+
+
     //delayAndSum<<<gridDim,blockDim>>>(dRfData, dLocData, dConstants, dXPositions, dYPositions, dZPositions, dVolume);
 
     dim3 gridDim(volume->getXCount(), volume->getYCount(), volume->getZCount());
-    complexDelayAndSum<< <gridDim, 512 >> > (dRfData, dLocData, dXPositions, dYPositions, dZPositions, dVolume, sampleCount, transmissionCount);
+
+    float max_dist = volume->get_max_xz_dist();
+    complexDelayAndSum<< <gridDim, 512 >> > (dRfData, dLocData, dXPositions, dYPositions, dZPositions, dVolume, sampleCount, transmissionCount, max_dist);
     {
         // Transfer Data back
         // Check for any errors launching the kernel

@@ -47,6 +47,10 @@ public:
 	const float* getYRange() const { return _yRange.data(); }
 	const float* getZRange() const { return _zRange.data(); }
 	
+	const float get_max_xz_dist() const 
+	{ 
+		return sqrt(powf(_dims.xMax, 2) + powf(_dims.yMax, 2) + powf(_dims.zMax, 2)); 
+	}
 
 private:
 

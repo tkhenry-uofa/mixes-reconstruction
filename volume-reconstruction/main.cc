@@ -13,16 +13,16 @@
 static const std::string loc_data_name = "allLocs";
 static const std::string rf_data_name = "allScans";
 
-static const float XMin = -45.0f / 1000;
-static const float XMax = 45.0f / 1000;
+static const float XMin = -5.0f / 1000;
+static const float XMax = 75.0f / 1000;
 
-static const float YMin = -5.0f / 1000;
-static const float YMax = 5.0f / 1000;
+static const float YMin = -10.0f / 1000;
+static const float YMax = 10.0f / 1000;
 
-static const float ZMin = 20.0f / 1000;
-static const float ZMax = 50.0f / 1000;
+static const float ZMin = 15.0f / 1000;
+static const float ZMax = 85.0f / 1000;
 
-static const float Resolution = 0.00015f;
+static const float Resolution = 0.0003f;
 
 static const Volume::VolumeDims VolumeDims = { XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution };
 
@@ -35,7 +35,7 @@ int main()
 
     std::string dataRoot = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\)";
 
-    std::string dataPath = dataRoot + "div_test.mat";
+    std::string dataPath = dataRoot + "div_side.mat";
 
     md::ArrayFactory factory;
 
@@ -111,7 +111,7 @@ int main()
 
     std::u16string name = u"volume";
  
-    std::u16string filePath = uR"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\div_test_beamformed.mat)";
+    std::u16string filePath = uR"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\div_side_beamformed.mat)";
     engine->setVariable(name, myTypedArray);
 
     engine->eval(u"save('" + filePath + u"');");
