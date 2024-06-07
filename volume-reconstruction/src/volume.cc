@@ -2,8 +2,8 @@
 
 #include "volume.hh"
 
-Volume::Volume(me::MATLABEngine* engine, const VolumeDims& dims): 
-                _data(nullptr), _dims(dims), _engine(engine), _end(nullptr)
+Volume::Volume(const VolumeDims& dims): 
+                _data(nullptr), _dims(dims), _end(nullptr)
 {
     for (float x = _dims.xMin; x <= _dims.xMax; x += _dims.resolution) {
         _xRange.push_back(x);

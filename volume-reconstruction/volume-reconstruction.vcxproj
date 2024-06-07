@@ -54,7 +54,7 @@
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>libMatlabEngine.lib;libMatlabDataArray.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libMatlabEngine.lib;libMatlabDataArray.lib;libmat.lib;libmx.lib;cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(CudaToolkitLibDir);$(MatlabRoot)\extern\lib\win64\microsoft\</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile>
@@ -81,16 +81,15 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="kernel.cu" />
-    <CudaCompile Include="complex_kernel.cu" />
+    <CudaCompile Include="src\complex_kernel.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cc" />
-    <ClCompile Include="volume.cc" />
+    <ClCompile Include="src\main.cc" />
+    <ClCompile Include="src\volume.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="kernel.hh" />
-    <ClInclude Include="volume.hh" />
+    <ClInclude Include="src\kernel.hh" />
+    <ClInclude Include="src\volume.hh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

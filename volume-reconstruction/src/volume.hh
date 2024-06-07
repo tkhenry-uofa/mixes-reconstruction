@@ -1,16 +1,9 @@
 #ifndef VOLUME_HH
 #define VOLUME_HH
 
-#include <MatlabDataArray.hpp>
-#include <MatlabEngine.hpp>
-
 #include <thrust/host_vector.h>
 
 #include <vector>
-
-namespace me = matlab::engine;
-namespace md = matlab::data;
-
 
 class Volume
 {
@@ -26,7 +19,7 @@ public:
 		const float resolution;
 	};
 
-	Volume( me::MATLABEngine* engine, const VolumeDims& dims);
+	Volume( const VolumeDims& dims);
 
 	~Volume();
 
@@ -43,11 +36,11 @@ public:
 	size_t getYCount() const { return _yCount; }
 	size_t getZCount() const { return _zCount; }
 
-	const float* getXRange() const { return _xRange.data(); }
-	const float* getYRange() const { return _yRange.data(); }
-	const float* getZRange() const { return _zRange.data(); }
+	const float* getXRange() { return _xRange.data(); }
+	const float* getYRange() { return _yRange.data(); }
+	const float* getZRange() { return _zRange.data(); }
 	
-	const float get_max_xz_dist() const 
+	float get_max_xz_dist() 
 	{ 
 		return sqrt(powf(_dims.xMax, 2) + powf(_dims.yMax, 2) + powf(_dims.zMax, 2)); 
 	}
@@ -60,8 +53,6 @@ private:
 
 	VolumeDims _dims;
 	
-	me::MATLABEngine const* _engine;
-
 	size_t _xCount;
 	size_t _yCount;
 	size_t _zCount;
