@@ -63,7 +63,7 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
 
     const float3 voxPos = { xRange[blockIdx.x], yRange[blockIdx.y], zRange[blockIdx.z] };
     
-    const float z_src = 0.006f;
+    const float z_src = -0.006f;
     float distance;
     int scanIndex;
     float exPos, eyPos;
@@ -83,10 +83,7 @@ __global__ void complexDelayAndSum(const cuda::std::complex<float>* rfData, cons
         // Plane wave
         //distance = distance + voxPos.z;
 
-        distance = distance + sqrt(powf(z_src - voxPos.z, 2) + powf(voxPos.x, 2));
-
-        // tx element to voxel (only valid for plane waves under the shadow)
-        // distance = distance + zPos;
+        distance += sqrt(powf(z_src - voxPos.z, 2) + powf(voxPos.x, 2)) + z_src;
 
         scanIndex = (int)floorf(distance * samplesPerMeter + pulse_delay);
 
