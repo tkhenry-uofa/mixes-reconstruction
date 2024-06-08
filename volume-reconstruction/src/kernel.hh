@@ -5,11 +5,6 @@
 #include <complex>
 
 #include "volume.hh"
+#include "defs.hh"
 
-struct DataDims {
-    float element_count;
-    float sample_count;
-    float transmission_count;
-};
-
-cudaError_t complexVolumeReconstruction(Volume* volume, const std::vector<std::complex<float>>& rf_data, const std::vector<float>& loc_data, const DataDims& dims);
+cudaError_t complexVolumeReconstruction(Volume* volume, const std::vector<std::complex<float>>& rf_data, const std::vector<float>& loc_data, const Defs::DataDims& dims);

@@ -134,7 +134,7 @@ cleanupMemory(float* floats[5], cuda::std::complex<float>* rfData)
     cudaFree(rfData);
 }
 
-cudaError_t complexVolumeReconstruction(Volume* volume, const std::vector<std::complex<float>>& rf_data, const std::vector<float>& loc_data, const DataDims& data_dims)
+cudaError_t complexVolumeReconstruction(Volume* volume, const std::vector<std::complex<float>>& rf_data, const std::vector<float>& loc_data, const Defs::DataDims& data_dims)
 {
     cuda::std::complex<float>* d_rf_data = 0;
     float* d_loc_data = 0;

@@ -5,21 +5,15 @@
 
 #include <vector>
 
+#include "defs.hh"
+
 class Volume
 {
 public:
 
-	struct VolumeDims {
-		const float xMin;
-		const float xMax;
-		const float yMin;
-		const float yMax;
-		const float zMin;
-		const float zMax;
-		const float resolution;
-	};
+	
 
-	Volume( const VolumeDims& dims);
+	Volume( const Defs::VolumeDims& dims);
 
 	~Volume();
 
@@ -28,7 +22,7 @@ public:
 	const float* end() const { return _end; }
 	
 	
-	VolumeDims getDims() const { return _dims; }
+	Defs::VolumeDims getDims() const { return _dims; }
 
 	std::vector<size_t> getCounts() const { return { _xCount, _yCount, _zCount }; }
 	size_t getCount() const { return _elementCount; }
@@ -51,7 +45,7 @@ private:
 	float* _data;
 	float* _end;
 
-	VolumeDims _dims;
+	Defs::VolumeDims _dims;
 	
 	size_t _xCount;
 	size_t _yCount;

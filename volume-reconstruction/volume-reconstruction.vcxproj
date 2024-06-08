@@ -85,10 +85,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cc" />
+    <ClCompile Include="src\mat_parser.cc" />
     <ClCompile Include="src\volume.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\defs.hh" />
     <ClInclude Include="src\kernel.hh" />
+    <ClInclude Include="src\mat_parser.hh" />
     <ClInclude Include="src\volume.hh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
