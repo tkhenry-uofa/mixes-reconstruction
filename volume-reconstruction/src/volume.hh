@@ -13,7 +13,7 @@ public:
 
 	
 
-	Volume( const Defs::VolumeDims& dims);
+	Volume( const defs::VolumeDims& dims);
 
 	~Volume();
 
@@ -22,7 +22,7 @@ public:
 	const float* end() const { return _end; }
 	
 	
-	Defs::VolumeDims getDims() const { return _dims; }
+	defs::VolumeDims getDims() const { return _dims; }
 
 	std::vector<size_t> getCounts() const { return { _xCount, _yCount, _zCount }; }
 	size_t getCount() const { return _elementCount; }
@@ -45,7 +45,7 @@ private:
 	float* _data;
 	float* _end;
 
-	Defs::VolumeDims _dims;
+	defs::VolumeDims _dims;
 	
 	size_t _xCount;
 	size_t _yCount;

@@ -2,9 +2,29 @@
 #define DEFS_H
 
 #include <string>
+#include <cuda_runtime.h>
 
-namespace Defs
+namespace defs
 {
+	enum TransmitType
+	{
+		TX_PLANE = 0,
+		TX_X_LINE = 1,
+		TX_Y_LINE = 2
+	};
+
+	struct KernelConstants
+	{
+		size_t element_count;
+		float max_voxel_distance;
+		size_t sample_count;
+		float3 src_pos;
+		size_t transmission_count;
+		TransmitType tx_type;
+	};
+
+
+
 	struct DataDims {
 		size_t element_count;
 		size_t sample_count;

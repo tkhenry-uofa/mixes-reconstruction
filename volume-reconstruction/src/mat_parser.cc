@@ -36,7 +36,7 @@ mat_parser::get_array_names(std::string file_path, int* array_count, std::vector
 };
 
 int
-mat_parser::get_data_arrays(std::string file_path, std::vector<std::complex<float>>** rf_data, std::vector<float>** loc_data, Defs::DataDims* data_dims)
+mat_parser::get_data_arrays(std::string file_path, std::vector<std::complex<float>>** rf_data, std::vector<float>** loc_data, defs::DataDims* data_dims)
 {
     int result = 0;
 
@@ -55,7 +55,7 @@ mat_parser::get_data_arrays(std::string file_path, std::vector<std::complex<floa
     }
 
     // Get RF Data
-    rf_array = matGetVariable(file_p, Defs::rf_data_name.c_str());
+    rf_array = matGetVariable(file_p, defs::rf_data_name.c_str());
     if (rf_array == NULL) {
         printf("Error reading in rf_data\n");
         result = 1;
@@ -76,7 +76,7 @@ mat_parser::get_data_arrays(std::string file_path, std::vector<std::complex<floa
     data_dims->transmission_count = rf_size[2];
 
     // Get loc data
-    loc_array = matGetVariable(file_p, Defs::loc_data_name.c_str());
+    loc_array = matGetVariable(file_p, defs::loc_data_name.c_str());
     if (rf_array == NULL) {
         printf("Error reading in rf_data\n");
         result = 1;

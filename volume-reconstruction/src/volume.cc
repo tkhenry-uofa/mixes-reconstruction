@@ -2,7 +2,7 @@
 
 #include "volume.hh"
 
-Volume::Volume(const Defs::VolumeDims& dims): 
+Volume::Volume(const defs::VolumeDims& dims): 
                 _data(nullptr), _dims(dims), _end(nullptr)
 {
     for (float x = _dims.xMin; x <= _dims.xMax; x += _dims.resolution) {

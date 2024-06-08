@@ -17,7 +17,7 @@ namespace mat_parser
 	get_array_names(std::string file_path, int* array_count, std::vector<std::string>* names);
 
 	int
-	get_data_arrays(std::string file_path, std::vector<std::complex<float>>** rf_data, std::vector<float>** loc_data, Defs::DataDims* data_dims);
+	get_data_arrays(std::string file_path, std::vector<std::complex<float>>** rf_data, std::vector<float>** loc_data, defs::DataDims* data_dims);
 
 	int
 	save_volume_data(Volume* vol, std::string file_path, std::string variable_name);

@@ -5,10 +5,11 @@
 #include <iostream>
 #include <complex>
 
+#include "kernel.hh"
 #include "defs.hh"
 #include "mat_parser.hh"
 #include "volume.hh"
-#include "kernel.hh"
+
 
 
 static const float XMin = -5.0f / 1000;
@@ -22,13 +23,14 @@ static const float ZMax = 85.0f / 1000;
 
 static const float Resolution = 0.0003f;
 
-static const Defs::VolumeDims vDims = { XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution };
+static const defs::VolumeDims vDims = { XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution };
 
 int 
 matlab_c_api(Volume* volume, std::string data_dir, std::string data_file)
 {
     int result = 0;
     std::string full_path = data_dir + data_file;
+    float3 src_pos = { 0.0f, 0.0f, -0.006f };
 
     int array_count;
     std::vector<std::string> array_names;
@@ -36,19 +38,17 @@ matlab_c_api(Volume* volume, std::string data_dir, std::string data_file)
 
     std::vector<std::complex<float>>* rf_data = nullptr;
     std::vector<float>* loc_data = nullptr;
-    Defs::DataDims data_dims;
+    defs::DataDims data_dims;
     result = mat_parser::get_data_arrays(full_path, &rf_data, &loc_data, &data_dims);
     if (result != 0)
     {
         std::cerr << "Failed to get data arrays" << std::endl;
-        goto Cleanup;
+        return 1;
     }
 
-    result = complexVolumeReconstruction(volume, *rf_data, *loc_data, data_dims);
+    
+    result = volumeReconstruction(volume, *rf_data, *loc_data, defs::TX_Y_LINE, src_pos, data_dims);
 
-
-
-Cleanup:
     delete rf_data;
     delete loc_data;
 
