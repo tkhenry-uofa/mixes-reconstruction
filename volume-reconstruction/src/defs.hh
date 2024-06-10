@@ -16,7 +16,7 @@ namespace defs
 	struct KernelConstants
 	{
 		size_t element_count;
-		float max_voxel_distance;
+		float inv_max_voxel_distance;
 		size_t sample_count;
 		float3 src_pos;
 		size_t transmission_count;

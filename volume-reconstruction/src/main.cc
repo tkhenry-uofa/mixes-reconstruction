@@ -12,14 +12,14 @@
 
 
 
-static const float XMin = -5.0f / 1000;
-static const float XMax = 75.0f / 1000;
+static const float XMin = -15.0f / 1000;
+static const float XMax = 15.0f / 1000;
 
-static const float YMin = -5.0f / 1000;
-static const float YMax = 5.0f / 1000;
+static const float YMin = -15.0f / 1000;
+static const float YMax = 15.0f / 1000;
 
-static const float ZMin = 15.0f / 1000;
-static const float ZMax = 85.0f / 1000;
+static const float ZMin = 40.0f / 1000;
+static const float ZMax = 50.0f / 1000;
 
 static const float Resolution = 0.0003f;
 
@@ -63,7 +63,7 @@ int main()
     Volume* vol = new Volume(vDims);
 
     std::string data_dir = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\)";
-    std::string data_file = "div_side.mat";
+    std::string data_file = "troubleshooting.mat";
 
     result = matlab_c_api(vol, data_dir, data_file);
 

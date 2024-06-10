@@ -20,9 +20,9 @@ if (STATUS != cudaSuccess) {            \
 }   
 
 // Half array
-//#define INV_MAX_LATERAL_RANGE 25.5650F
+#define INV_MAX_LATERAL_RANGE 25.5650F
 
-#define INV_MAX_LATERAL_RANGE 12.782493097453727F // Full array diagonal width
+//#define INV_MAX_LATERAL_RANGE 12.782493097453727F // Full array diagonal width
 #define PULSE_DELAY 31
 #define SAMPLES_PER_METER 32467.5F // 50 MHz, 1540 m/s
 
@@ -37,7 +37,7 @@ load_constants(defs::TransmitType type, float3 src_pos, defs::DataDims dims, flo
     defs::KernelConstants const_struct =
     {   
         dims.element_count,
-        max_dist,
+        1/max_dist,
         dims.sample_count,
         src_pos,
         dims.transmission_count,
@@ -131,7 +131,7 @@ complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData
         scanIndex = lroundf((rx_distance + tx_distance) * SAMPLES_PER_METER + PULSE_DELAY);
 
         value = rfData[(t * Constants.sample_count * Constants.element_count) + (e * Constants.sample_count) + scanIndex-1];
-        value = value * tx_distance / Constants.max_voxel_distance;
+        value = value * tx_distance * Constants.inv_max_voxel_distance;
         temp[e] += value*apro;
 
     }
