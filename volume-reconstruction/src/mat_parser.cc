@@ -3,146 +3,187 @@
 
 #include "mat_parser.hh"
 
+static const char* Rf_data_name = "rx_scans";
+static const char* Loc_data_name = "rx_locs";
+static const char* Tx_config_name = "tx_config";
 
-int
-mat_parser::get_array_names(std::string file_path, int* array_count, std::vector<std::string>* names)
+static const char* F0_name = "f0";
+static const char* Fs_name = "fs";
+
+static const char* Column_count_name = "cols";
+static const char* Row_count_name = "rows";
+static const char* Width_name = "width";
+static const char* Pitch_name = "pitch";
+
+static const char* X_min_name = "x_min";
+static const char* x_max_name = "x_max";
+static const char* Y_min_name = "y_min";
+static const char* Y_max_name = "y_max";
+
+static const char* Tx_count_name = "no_transmits";
+static const char* Src_location_name = "src";
+static const char* Transmit_type_name = "transmit";
+static const char* Pulse_delay_name = "pulse_delay";
+
+
+MatParser::~MatParser()
 {
-    MATFile* file_p = matOpen(file_path.c_str(), "r");
-
-    if (file_p == NULL)
+    if (_file != NULL)
     {
-        std::cerr << "Failed to open file: " << file_path << std::endl;
-        return 1;
+        matClose(_file);
+    }
+}
+
+bool
+MatParser::openFile(std::string file)
+{
+    bool success = true;
+
+    _file = matOpen(file.c_str(), "r");
+
+    if (_file == NULL)
+    {
+        std::cerr << "Failed to open file: " << file << std::endl;
+        return false;
     }
 
-    const char** dir = (const char**)matGetDir(file_p, array_count);
-    if (dir == NULL) {
-        printf("Error reading directory of file %s\n", file_path.c_str());
-        return(1);
+    success = success && _loadRfDataArray() && _loadLocationData() && _loadTxConfig();
+    return success;
+}
+
+bool
+MatParser::_loadRfDataArray()
+{
+    bool success = false;
+    mxArray* mx_array = nullptr;
+
+    // Get RF Data
+    mx_array = matGetVariable(_file, Rf_data_name);
+    if (mx_array == NULL) {
+        std::cerr << "Error reading rf data array." << std::endl;
+        return success;
+    }
+
+    if (mxIsComplex(mx_array))
+    {
+        const mwSize* rf_size = mxGetDimensions(mx_array);
+
+        _rf_data_dims.sample_count = rf_size[0];
+        _rf_data_dims.element_count = rf_size[1];
+        _rf_data_dims.tx_count = rf_size[2];
+
+        // mxComplexSingle and std::complex<float> are both structs of two floats so we can cast directly
+        const size_t rf_total_count = mxGetNumberOfElements(mx_array);
+        std::complex<float>* rf_data_p = reinterpret_cast<std::complex<float>*>(mxGetComplexSingles(mx_array));
+        _rf_data.reset(new std::vector<std::complex<float>>(rf_data_p, &(rf_data_p[rf_total_count - 1])));
+        success = true;
     }
     else
     {
-        for (int i = 0; i < *array_count; i++)
-        {
-            names->push_back(dir[i]);
-        }
+        std::cerr << "RF Data array is not complex." << std::endl;
     }
+    mxDestroyArray(mx_array);
+    return success;
+}
 
-    mxFree(dir);
-    matClose(file_p);
-
-
-    return 0;
-};
-
-int
-mat_parser::get_data_arrays(std::string file_path, std::vector<std::complex<float>>** rf_data, std::vector<float>** loc_data, defs::DataDims* data_dims)
+bool
+MatParser::_loadLocationData()
 {
-    int result = 0;
+    bool success = false;
 
-
-    mxArray* rf_array = nullptr;
-    mxArray* loc_array = nullptr;
-
-    std::vector<std::complex<float>>* rf_vec = nullptr;
-    std::vector<float>* loc_vec = nullptr;
-
-    MATFile* file_p = matOpen(file_path.c_str(), "r");
-    if (file_p == NULL) {
-        printf("Error opening file %s\n", file_path.c_str());
-        result = 1;
-        goto Cleanup;
-    }
+    mxArray* mx_array = nullptr;
 
     // Get RF Data
-    rf_array = matGetVariable(file_p, defs::rf_data_name.c_str());
-    if (rf_array == NULL) {
-        printf("Error reading in rf_data\n");
-        result = 1;
-        goto Cleanup;
+    mx_array = matGetVariable(_file, Loc_data_name);
+    if (mx_array == NULL) {
+        std::cerr << "Error reading location data array." << std::endl;
+        return success;
     }
 
-    if (!mxIsComplex(rf_array))
-    {
-        std::cerr << "RF Data array is not complex." << std::endl;
-        result = 1;
-        goto Cleanup;
-    }
+    success = true;
+    const size_t loc_total_count = mxGetNumberOfElements(mx_array);
+    mxSingle* loc_data_p = mxGetSingles(mx_array);
+    _location_data.reset(new std::vector<float>(loc_data_p, &(loc_data_p[loc_total_count - 1])));
 
-    const mwSize* rf_size = mxGetDimensions(rf_array);
 
-    data_dims->sample_count = rf_size[0];
-    data_dims->element_count = rf_size[1];
-    data_dims->transmission_count = rf_size[2];
+    mxDestroyArray(mx_array);
+    return success;
+}
 
-    // Get loc data
-    loc_array = matGetVariable(file_p, defs::loc_data_name.c_str());
-    if (rf_array == NULL) {
-        printf("Error reading in rf_data\n");
-        result = 1;
-        goto Cleanup;
-    }
-
-    // mxComplexSingle and std::complex<float> are both structs of two floats so we can cast directly
-    const size_t rf_total_count = mxGetNumberOfElements(rf_array);
-    std::complex<float>* rf_data_p = reinterpret_cast<std::complex<float>*>(mxGetComplexSingles(rf_array));
-    *rf_data = new std::vector<std::complex<float>>(rf_data_p, &(rf_data_p[rf_total_count - 1]));
-
-    const size_t loc_total_count = mxGetNumberOfElements(loc_array);
-    mxSingle* loc_data_p = mxGetSingles(loc_array);
-    *loc_data = new std::vector<float>(loc_data_p, &(loc_data_p[loc_total_count - 1]));
-
-Cleanup:
-
-    if (matClose(file_p) != 0) {
-        printf("Error closing file %s\n", file_path.c_str());
-        result = 1;
-    }
-
-    mxDestroyArray(rf_array);
-    mxDestroyArray(loc_array);
-
-    return result;
-};
-
-int
-mat_parser::save_volume_data(Volume* vol, std::string file_path, std::string variable_name)
+bool
+MatParser::_loadTxConfig()
 {
-    int result = 0;
+    bool success = false;
 
-    mwSize dims[3] = { vol->getXCount(), vol->getYCount(), vol->getZCount() };
+    mxArray* struct_array = nullptr;
+
+    // Get RF Data
+    struct_array = matGetVariable(_file, Tx_config_name);
+    if (struct_array == NULL) {
+        std::cerr << "Error reading tx configuration struct." << std::endl;
+        return success;
+    }
+
+
+    // TODO: Catch log and throw null returns
+    mxArray* field_p = mxGetField(struct_array, 0, F0_name);
+    _tx_config.f0 = (int)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, Fs_name);
+    _tx_config.fs = (int)*mxGetDoubles(field_p);
+
+
+    field_p = mxGetField(struct_array, 0, Column_count_name);
+    _tx_config.column_count = (int)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, Row_count_name);
+    _tx_config.row_count = (int)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, Width_name);
+    _tx_config.width = (float)*mxGetDoubles(field_p);
+    /*field_p = mxGetField(struct_array, 0, Pitch_name);
+    _tx_config.pitch = (float)*mxGetDoubles(field_p);*/
+
+    field_p = mxGetField(struct_array, 0, X_min_name);
+    _tx_config.x_min = (float)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, x_max_name);
+    _tx_config.x_max = (float)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, Y_min_name);
+    _tx_config.y_min = (float)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, Y_max_name);
+    _tx_config.y_max = (float)*mxGetDoubles(field_p);
+
+    field_p = mxGetField(struct_array, 0, Tx_count_name);
+    _tx_config.tx_count = (int)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, Pulse_delay_name);
+    _tx_config.pulse_delay = (float)*mxGetDoubles(field_p);
+
+    // TODO src_location and transmit type
+
+
+    return success;
+}
+
+bool
+MatParser::SaveFloatArray(float* ptr, size_t dims[3], std::string file_path, std::string variable_name)
+{
+    bool success = false;
 
     mxArray* volume_array = mxCreateNumericArray(3, dims, mxSINGLE_CLASS, mxREAL);
-
-    mxSingle* start = (mxSingle*)vol->getData();
-
-    mxSetSingles(volume_array, start);
-
+    mxSetSingles(volume_array, (mxSingle*)ptr);
 
     MATFile* file_p = matOpen(file_path.c_str(), "w");
     if (!file_p)
     {
         std::cerr << "Failed to open file for volume: " << file_path << std::endl;
-        result = 1;
-        goto Cleanup;
+        mxDestroyArray(volume_array);
+        return success;
     }
 
-    result = matPutVariable(file_p, variable_name.c_str(), volume_array);
-    if (result != 0)
+    success = matPutVariable(file_p, variable_name.c_str(), volume_array);
+    if (!success)
     {
-        matError mat_error = matGetErrno(file_p);
-        perror("Error");
-        std::cerr << "Failed load volume into file." << std::endl;
-        result = 1;
-        goto Cleanup;
+        std::cerr << "Failed to save array to file." << std::endl;
     }
 
-Cleanup:
-    if (matClose(file_p) != 0) {
-        std::cerr << "Failed to close file: " << file_path << std::endl;
-        result = 1;
-    }
+    matClose(file_p);
 
-    return result;
+    return success;
 }
-
