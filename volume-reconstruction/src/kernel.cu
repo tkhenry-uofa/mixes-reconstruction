@@ -31,16 +31,16 @@ if (STATUS != cudaSuccess) {            \
 
 __constant__ defs::KernelConstants Constants;
 
-cudaError_t
-load_constants(defs::TransmitType type, float3 src_pos, defs::DataDims dims, float max_dist)
+static cudaError_t
+load_constants(const defs::TxConfig& tx_config, const defs::RfDataDims& rf_dims)
 {
     defs::KernelConstants const_struct =
     {   
-        dims.element_count,
-        dims.sample_count,
-        src_pos,
-        dims.tx_count,
-        type
+        rf_dims.element_count,
+        rf_dims.sample_count,
+        tx_config.src_location,
+        rf_dims.tx_count,
+        tx_config.transmit_type
     };
     cudaError_t error = cudaMemcpyToSymbol(Constants, &const_struct, sizeof(defs::KernelConstants));
     return error;
@@ -130,7 +130,7 @@ complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData
         scanIndex = lroundf((rx_distance + tx_distance) * SAMPLES_PER_METER + PULSE_DELAY);
 
         value = rfData[(t * Constants.sample_count * Constants.element_count) + (e * Constants.sample_count) + scanIndex-1];
-        temp[e] += value*apro;
+        temp[e] += value;
 
     }
 
@@ -169,7 +169,7 @@ cleanupMemory(void* ptrs[6])
 }
 
 cudaError_t 
-volumeReconstruction(Volume* volume, const std::vector<std::complex<float>>* rf_data, const std::vector<float>* loc_data, defs::TransmitType tx_type, float3 src_pos, const defs::DataDims& dims)
+volumeReconstruction(Volume* volume, const std::vector<std::complex<float>>* rf_data, const defs::RfDataDims& rf_dims, const std::vector<float>* loc_data, const defs::TxConfig& tx_config)
 {
     cuda::std::complex<float>* d_rf_data = 0;
     float* d_loc_data = 0;
@@ -224,7 +224,7 @@ volumeReconstruction(Volume* volume, const std::vector<std::complex<float>>* rf_
     cuda_status = cudaMemcpy(d_z_positions, volume->get_z_range(), volume->get_z_count() * sizeof(float), cudaMemcpyHostToDevice);
     RETURN_IF_ERROR(cuda_status, "Failed to copy z data to device.");
 
-    cuda_status = load_constants(tx_type, src_pos, dims, volume->get_max_xz_dist());
+    cuda_status = load_constants(tx_config, rf_dims);
     RETURN_IF_ERROR(cuda_status, "Failed to send constant data to device.");
 
 

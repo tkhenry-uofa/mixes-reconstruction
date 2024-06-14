@@ -50,7 +50,7 @@ namespace defs
 	};
 
 
-	struct DataDims {
+	struct RfDataDims {
 		size_t element_count;
 		size_t sample_count;
 		size_t tx_count;

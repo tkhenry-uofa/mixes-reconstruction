@@ -38,11 +38,14 @@ public:
 	std::vector<std::complex<float>>*
 	getRfData() { return _rf_data.get(); };
 
-	defs::DataDims
+	defs::RfDataDims
 	getRfDims() { return _rf_data_dims; };
 
 	std::vector<float>*
 	getLocationData() { return _location_data.get(); };
+
+	defs::TxConfig
+	getTxConfig() { return _tx_config; };
 
 
 private:
@@ -59,7 +62,7 @@ private:
 	defs::TxConfig _tx_config;
 	
 	std::vector<std::string> _array_names;
-	defs::DataDims _rf_data_dims;
+	defs::RfDataDims _rf_data_dims;
 
 	int _array_count;
 

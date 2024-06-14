@@ -102,23 +102,11 @@ MatParser::_loadTxConfig()
         return success;
     }
 
-    std::vector<std::string> names;
-    int field_count = mxGetNumberOfFields_800(struct_array);
-
-    for (int i = 0; i < field_count; i++)
-    {
-        names.push_back(mxGetFieldNameByNumber(struct_array, i));
-        std::cout << i << " " << names.at(i) << " " << (names.at(i) == defs::Transmit_type_name) << std::endl;
-    }
-
-    int field_num = mxGetFieldNumber_800(struct_array, defs::Tr);
-    mxArray* test = mxGetFieldByNumber(struct_array, 0, field_num);
-
     // TODO: Catch log and throw null returns
     mxArray* field_p = mxGetField(struct_array, 0, defs::F0_name);
-    _tx_config.f0 = (int)*mxGetDoubles(field_p);
+    _tx_config.f0 = (float)*mxGetDoubles(field_p);
     field_p = mxGetField(struct_array, 0, defs::Fs_name);
-    _tx_config.fs = (int)*mxGetDoubles(field_p);
+    _tx_config.fs = (float)*mxGetDoubles(field_p);
 
 
     field_p = mxGetField(struct_array, 0, defs::Column_count_name);
@@ -138,7 +126,7 @@ MatParser::_loadTxConfig()
     _tx_config.y_min = (float)*mxGetDoubles(field_p);
     field_p = mxGetField(struct_array, 0, defs::Y_max_name);
     _tx_config.y_max = (float)*mxGetDoubles(field_p);
-
+     
     field_p = mxGetField(struct_array, 0, defs::Tx_count_name);
     _tx_config.tx_count = (int)*mxGetDoubles(field_p);
     field_p = mxGetField(struct_array, 0, defs::Pulse_delay_name);
@@ -148,7 +136,7 @@ MatParser::_loadTxConfig()
     float* src_locs = (float*)mxGetDoubles(field_p);
     _tx_config.src_location = { src_locs[0], src_locs[1], src_locs[2] };
 
-    field_p = mxGetFieldByNumber(struct_array, 0, 7);
+    field_p = mxGetField(struct_array, 0, defs::Transmit_type_name);
     std::u16string tx_name =  (const char16_t*)(mxGetChars(field_p));
 
     if (tx_name == defs::Plane_tx_name)

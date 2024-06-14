@@ -41,9 +41,7 @@ int main()
         return 1;
     }
 
-    float3 src_pos = { 0.0f, 0.0f, -0.004f };
-
-    int result = volumeReconstruction(volume, parser->getRfData(), parser->getLocationData(), defs::TX_Y_LINE, src_pos, parser->getRfDims());
+    int result = volumeReconstruction(volume, parser->getRfData(), parser->getRfDims(), parser->getLocationData(), parser->getTxConfig());
     std::string volume_path = data_dir + "beamformed_" + data_file;
     std::string variable_name = "volume";
 
