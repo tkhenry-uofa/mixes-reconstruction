@@ -10,8 +10,6 @@
 #include "mat_parser.hh"
 #include "volume.hh"
 
-
-
 static const float XMin = 50.0f / 1000;
 static const float XMax = 100.0f / 1000;
 
@@ -31,7 +29,7 @@ int main()
     Volume* volume = new Volume(Volume_Dimensions);
 
     std::string data_dir = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\)";
-    std::string data_file = "4x4_cyst_side.mat";
+    std::string data_file = "4x4_cyst_side_2.mat";
     std::string full_path = data_dir + data_file;
 
     MatParser* parser = new MatParser();

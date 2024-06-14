@@ -3,28 +3,6 @@
 
 #include "mat_parser.hh"
 
-static const char* Rf_data_name = "rx_scans";
-static const char* Loc_data_name = "rx_locs";
-static const char* Tx_config_name = "tx_config";
-
-static const char* F0_name = "f0";
-static const char* Fs_name = "fs";
-
-static const char* Column_count_name = "cols";
-static const char* Row_count_name = "rows";
-static const char* Width_name = "width";
-static const char* Pitch_name = "pitch";
-
-static const char* X_min_name = "x_min";
-static const char* x_max_name = "x_max";
-static const char* Y_min_name = "y_min";
-static const char* Y_max_name = "y_max";
-
-static const char* Tx_count_name = "no_transmits";
-static const char* Src_location_name = "src";
-static const char* Transmit_type_name = "transmit";
-static const char* Pulse_delay_name = "pulse_delay";
-
 
 MatParser::~MatParser()
 {
@@ -58,7 +36,7 @@ MatParser::_loadRfDataArray()
     mxArray* mx_array = nullptr;
 
     // Get RF Data
-    mx_array = matGetVariable(_file, Rf_data_name);
+    mx_array = matGetVariable(_file, defs::Rf_data_name);
     if (mx_array == NULL) {
         std::cerr << "Error reading rf data array." << std::endl;
         return success;
@@ -94,7 +72,7 @@ MatParser::_loadLocationData()
     mxArray* mx_array = nullptr;
 
     // Get RF Data
-    mx_array = matGetVariable(_file, Loc_data_name);
+    mx_array = matGetVariable(_file, defs::Loc_data_name);
     if (mx_array == NULL) {
         std::cerr << "Error reading location data array." << std::endl;
         return success;
@@ -118,46 +96,79 @@ MatParser::_loadTxConfig()
     mxArray* struct_array = nullptr;
 
     // Get RF Data
-    struct_array = matGetVariable(_file, Tx_config_name);
+    struct_array = matGetVariable(_file, defs::Tx_config_name);
     if (struct_array == NULL) {
         std::cerr << "Error reading tx configuration struct." << std::endl;
         return success;
     }
 
+    std::vector<std::string> names;
+    int field_count = mxGetNumberOfFields_800(struct_array);
+
+    for (int i = 0; i < field_count; i++)
+    {
+        names.push_back(mxGetFieldNameByNumber(struct_array, i));
+        std::cout << i << " " << names.at(i) << " " << (names.at(i) == defs::Transmit_type_name) << std::endl;
+    }
+
+    int field_num = mxGetFieldNumber_800(struct_array, defs::Tr);
+    mxArray* test = mxGetFieldByNumber(struct_array, 0, field_num);
 
     // TODO: Catch log and throw null returns
-    mxArray* field_p = mxGetField(struct_array, 0, F0_name);
+    mxArray* field_p = mxGetField(struct_array, 0, defs::F0_name);
     _tx_config.f0 = (int)*mxGetDoubles(field_p);
-    field_p = mxGetField(struct_array, 0, Fs_name);
+    field_p = mxGetField(struct_array, 0, defs::Fs_name);
     _tx_config.fs = (int)*mxGetDoubles(field_p);
 
 
-    field_p = mxGetField(struct_array, 0, Column_count_name);
+    field_p = mxGetField(struct_array, 0, defs::Column_count_name);
     _tx_config.column_count = (int)*mxGetDoubles(field_p);
-    field_p = mxGetField(struct_array, 0, Row_count_name);
+    field_p = mxGetField(struct_array, 0, defs::Row_count_name);
     _tx_config.row_count = (int)*mxGetDoubles(field_p);
-    field_p = mxGetField(struct_array, 0, Width_name);
+    field_p = mxGetField(struct_array, 0, defs::Width_name);
     _tx_config.width = (float)*mxGetDoubles(field_p);
-    /*field_p = mxGetField(struct_array, 0, Pitch_name);
-    _tx_config.pitch = (float)*mxGetDoubles(field_p);*/
+    field_p = mxGetField(struct_array, 0, defs::Pitch_name);
+    _tx_config.pitch = (float)*mxGetDoubles(field_p);
 
-    field_p = mxGetField(struct_array, 0, X_min_name);
+    field_p = mxGetField(struct_array, 0, defs::X_min_name);
     _tx_config.x_min = (float)*mxGetDoubles(field_p);
-    field_p = mxGetField(struct_array, 0, x_max_name);
+    field_p = mxGetField(struct_array, 0, defs::x_max_name);
     _tx_config.x_max = (float)*mxGetDoubles(field_p);
-    field_p = mxGetField(struct_array, 0, Y_min_name);
+    field_p = mxGetField(struct_array, 0, defs::Y_min_name);
     _tx_config.y_min = (float)*mxGetDoubles(field_p);
-    field_p = mxGetField(struct_array, 0, Y_max_name);
+    field_p = mxGetField(struct_array, 0, defs::Y_max_name);
     _tx_config.y_max = (float)*mxGetDoubles(field_p);
 
-    field_p = mxGetField(struct_array, 0, Tx_count_name);
+    field_p = mxGetField(struct_array, 0, defs::Tx_count_name);
     _tx_config.tx_count = (int)*mxGetDoubles(field_p);
-    field_p = mxGetField(struct_array, 0, Pulse_delay_name);
+    field_p = mxGetField(struct_array, 0, defs::Pulse_delay_name);
     _tx_config.pulse_delay = (float)*mxGetDoubles(field_p);
 
-    // TODO src_location and transmit type
+    field_p = mxGetField(struct_array, 0, defs::Src_location_name);
+    float* src_locs = (float*)mxGetDoubles(field_p);
+    _tx_config.src_location = { src_locs[0], src_locs[1], src_locs[2] };
 
+    field_p = mxGetFieldByNumber(struct_array, 0, 7);
+    std::u16string tx_name =  (const char16_t*)(mxGetChars(field_p));
 
+    if (tx_name == defs::Plane_tx_name)
+    {
+        _tx_config.transmit_type = defs::TX_PLANE;
+    }
+    else if (tx_name == defs::X_line_tx_name)
+    {
+        _tx_config.transmit_type = defs::TX_X_LINE;
+    }
+    else if (tx_name == defs::Y_line_tx_name)
+    {
+        _tx_config.transmit_type = defs::TX_Y_LINE;
+    }
+    else
+    {
+        std::cerr << "Invalid transmit type (read the file)." << std::endl;
+    }
+
+    success = true;
     return success;
 }
 
