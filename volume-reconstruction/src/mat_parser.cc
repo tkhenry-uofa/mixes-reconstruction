@@ -163,7 +163,6 @@ MatParser::_loadTxConfig()
 bool
 MatParser::SaveFloatArray(float* ptr, size_t dims[3], std::string file_path, std::string variable_name)
 {
-    bool success = false;
 
     mxArray* volume_array = mxCreateNumericArray(3, dims, mxSINGLE_CLASS, mxREAL);
     mxSetSingles(volume_array, (mxSingle*)ptr);
@@ -173,16 +172,17 @@ MatParser::SaveFloatArray(float* ptr, size_t dims[3], std::string file_path, std
     {
         std::cerr << "Failed to open file for volume: " << file_path << std::endl;
         mxDestroyArray(volume_array);
-        return success;
+        return 1;
     }
 
-    success = matPutVariable(file_p, variable_name.c_str(), volume_array);
-    if (!success)
+    int error = matPutVariable(file_p, variable_name.c_str(), volume_array);
+    if (error)
     {
         std::cerr << "Failed to save array to file." << std::endl;
+        return error;
     }
 
     matClose(file_p);
 
-    return success;
+    return 0;
 }

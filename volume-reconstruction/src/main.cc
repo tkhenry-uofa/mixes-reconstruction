@@ -10,16 +10,16 @@
 #include "mat_parser.hh"
 #include "volume.hh"
 
-static const float XMin = 50.0f / 1000;
-static const float XMax = 100.0f / 1000;
+static const float XMin = -20.0f / 1000;
+static const float XMax = 20.0f / 1000;
 
-static const float YMin = -15.0f / 1000;
-static const float YMax = 15.0f / 1000;
+static const float YMin = -20.0f / 1000;
+static const float YMax = 20.0f / 1000;
 
-static const float ZMin = 60.0f / 1000;
-static const float ZMax = 120.0f / 1000;
+static const float ZMin = 80.0f / 1000;
+static const float ZMax = 100.0f / 1000;
 
-static const float Resolution = 0.0003f;
+static const float Resolution = 0.00015f;
 
 static const defs::VolumeDims Volume_Dimensions = { XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution };
 
@@ -29,8 +29,9 @@ int main()
     Volume* volume = new Volume(Volume_Dimensions);
 
     std::string data_dir = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\cuda_data\)";
-    std::string data_file = "4x4_cyst_side_2.mat";
-    std::string full_path = data_dir + data_file;
+    std::string data_file = "psf_90";
+    std::string extension = ".mat";
+    std::string full_path = data_dir + data_file + extension;
 
     MatParser* parser = new MatParser();
 
@@ -42,7 +43,8 @@ int main()
     }
 
     int result = volumeReconstruction(volume, parser->getRfData(), parser->getRfDims(), parser->getLocationData(), parser->getTxConfig());
-    std::string volume_path = data_dir + "beamformed_" + data_file;
+    
+    std::string volume_path = data_dir + data_file + "_beamformed" + extension;
     std::string variable_name = "volume";
 
     if (result == 0)

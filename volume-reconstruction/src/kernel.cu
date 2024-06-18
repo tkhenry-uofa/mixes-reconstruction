@@ -19,8 +19,11 @@ if (STATUS != cudaSuccess) {            \
     return STATUS;                      \
 }   
 
-// Half array
+// Most of these are used for aprodization, if the apro scheme becomes stable they'll join the other loaded constants
 #define INV_MAX_LATERAL_RANGE 25.5650F
+
+#define TX_SIDE_LENGTH  0.078232F
+#define TAN_ANGLE 0.9779F // tan of the angle the wave leaves the array at
 
 //#define INV_MAX_LATERAL_RANGE 12.782493097453727F // Full array diagonal width
 #define PULSE_DELAY 31
@@ -48,30 +51,18 @@ load_constants(const defs::TxConfig& tx_config, const defs::RfDataDims& rf_dims)
 
 /**
 * Calculates a hann aprodization based on the lateral distance to the element
-* Anything further than the distance from the middle of the array to the corner gets zeroed
 */
 __device__ float 
-calculateAprodization(float3 voxPosition, float3 elePosition)
+yLineAprodization(float3 voxPosition, float3 elePosition)
 {
 
-    float x_dist = abs(voxPosition.x - elePosition.x);
-    float y_dist = abs(voxPosition.y - elePosition.y);
+    float dist = abs(voxPosition.x - elePosition.x);
 
-    // Get the lateral distance between the voxel and the element
-    float lateral_dist = sqrtf(powf(x_dist, 2) + powf(y_dist, 2));
+    float max_dist = TX_SIDE_LENGTH + voxPosition.z * TAN_ANGLE;
 
-    // Normalize and shift to map 0 to the peak of the window and 1 to the left end
-    lateral_dist = lateral_dist * INV_MAX_LATERAL_RANGE;
+    dist = dist / max_dist * 0.5 * CUDART_PI_F; // Scale to 0.5 to map to the first half of cos
 
-    // Everything >= 1 gets set to zero
-    lateral_dist = (lateral_dist > 1.0f) ? 1.0f : lateral_dist;
-
-    // Compress to 0-0.5
-    lateral_dist = lateral_dist * 0.5f;
-
-    float apro = powf(cosf(CUDART_PI_F * lateral_dist), 2);
-
-    return apro;
+    return powf(cosf(dist), 2);
 }
 
 // Blocks = voxels
@@ -104,7 +95,7 @@ complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData
         exPos = locData[2 * (t + e * Constants.tx_count)];
         eyPos = locData[2 * (t + e * Constants.tx_count) + 1];
 
-        float apro = calculateAprodization(voxPos, { exPos, eyPos, 0.0f });
+        float apro = yLineAprodization(voxPos, { exPos, eyPos, 0.0f });
 
         // voxel to rx element
         rx_distance = norm3df(voxPos.x - exPos, voxPos.y - eyPos, voxPos.z);
@@ -130,7 +121,7 @@ complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData
         scanIndex = lroundf((rx_distance + tx_distance) * SAMPLES_PER_METER + PULSE_DELAY);
 
         value = rfData[(t * Constants.sample_count * Constants.element_count) + (e * Constants.sample_count) + scanIndex-1];
-        temp[e] += value;
+        temp[e] += value*apro;
 
     }
 
