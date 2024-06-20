@@ -163,12 +163,6 @@ int beamform_from_mapped_page(std::string filepath, std::string extension)
     result = load_location_data(&location_array);
     result = load_rf_data(&rf_data);
 
-    struct RfDataDims {
-        size_t element_count;
-        size_t sample_count;
-        size_t tx_count;
-    };
-
     defs::RfDataDims dims = { 512,2825,3 };
 
     result = volumeReconstruction(volume, rf_data, dims, location_array, parser->getTxConfig());
