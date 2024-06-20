@@ -84,11 +84,13 @@
     <CudaCompile Include="src\kernel.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\dma_mapping.cc" />
     <ClCompile Include="src\main.cc" />
     <ClCompile Include="src\mat_parser.cc" />
     <ClCompile Include="src\volume.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\dma_mapping.hh" />
     <ClInclude Include="src\defs.hh" />
     <ClInclude Include="src\kernel.hh" />
     <ClInclude Include="src\mat_parser.hh" />
