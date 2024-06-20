@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <iostream>
+#include "defs.hh"
 
 int pipe_test()
 {
@@ -82,6 +83,67 @@ int pipe_test()
     std::cout << "Server exiting." << std::endl;
     return 0;
 }
+
+
+
+int tx_array_test()
+{
+    // TODO: Catch log and throw null returns
+    mxArray* field_p = mxGetField(struct_array, 0, defs::F0_name);
+    _tx_config.f0 = (float)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, defs::Fs_name);
+    _tx_config.fs = (float)*mxGetDoubles(field_p);
+
+
+    field_p = mxGetField(struct_array, 0, defs::Column_count_name);
+    _tx_config.column_count = (int)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, defs::Row_count_name);
+    _tx_config.row_count = (int)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, defs::Width_name);
+    _tx_config.width = (float)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, defs::Pitch_name);
+    _tx_config.pitch = (float)*mxGetDoubles(field_p);
+
+    field_p = mxGetField(struct_array, 0, defs::X_min_name);
+    _tx_config.x_min = (float)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, defs::x_max_name);
+    _tx_config.x_max = (float)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, defs::Y_min_name);
+    _tx_config.y_min = (float)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, defs::Y_max_name);
+    _tx_config.y_max = (float)*mxGetDoubles(field_p);
+
+    field_p = mxGetField(struct_array, 0, defs::Tx_count_name);
+    _tx_config.tx_count = (int)*mxGetDoubles(field_p);
+    field_p = mxGetField(struct_array, 0, defs::Pulse_delay_name);
+    _tx_config.pulse_delay = (float)*mxGetDoubles(field_p);
+
+    field_p = mxGetField(struct_array, 0, defs::Src_location_name);
+    float* src_locs = (float*)mxGetDoubles(field_p);
+    _tx_config.src_location = { src_locs[0], src_locs[1], src_locs[2] };
+
+    field_p = mxGetField(struct_array, 0, defs::Transmit_type_name);
+    std::u16string tx_name = (const char16_t*)(mxGetChars(field_p));
+
+    if (tx_name == defs::Plane_tx_name)
+    {
+        _tx_config.transmit_type = defs::TX_PLANE;
+    }
+    else if (tx_name == defs::X_line_tx_name)
+    {
+        _tx_config.transmit_type = defs::TX_X_LINE;
+    }
+    else if (tx_name == defs::Y_line_tx_name)
+    {
+        _tx_config.transmit_type = defs::TX_Y_LINE;
+    }
+    else
+    {
+        std::cerr << "Invalid transmit type (read the file)." << std::endl;
+    }
+}
+
+
 
 int page_map()
 {

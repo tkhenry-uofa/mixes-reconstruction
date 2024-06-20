@@ -47,6 +47,12 @@ public:
 	defs::TxConfig
 	getTxConfig() { return _tx_config; };
 
+	bool
+	loadAllData();
+
+	bool
+	MatParser::loadTxConfig();
+
 
 private:
 

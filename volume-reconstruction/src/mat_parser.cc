@@ -15,8 +15,6 @@ MatParser::~MatParser()
 bool
 MatParser::openFile(std::string file)
 {
-    bool success = true;
-
     _file = matOpen(file.c_str(), "r");
 
     if (_file == NULL)
@@ -24,9 +22,19 @@ MatParser::openFile(std::string file)
         std::cerr << "Failed to open file: " << file << std::endl;
         return false;
     }
+    return true;
+}
 
-    success = success && _loadRfDataArray() && _loadLocationData() && _loadTxConfig();
-    return success;
+bool
+MatParser::loadAllData()
+{
+    return _loadRfDataArray() && _loadLocationData() && _loadTxConfig();
+}
+
+bool
+MatParser::loadTxConfig()
+{
+    return _loadTxConfig();
 }
 
 bool
@@ -34,7 +42,7 @@ MatParser::_loadRfDataArray()
 {
     bool success = false;
     mxArray* mx_array = nullptr;
-
+    mxChar test;
     // Get RF Data
     mx_array = matGetVariable(_file, defs::Rf_data_name);
     if (mx_array == NULL) {
@@ -53,7 +61,7 @@ MatParser::_loadRfDataArray()
         // mxComplexSingle and std::complex<float> are both structs of two floats so we can cast directly
         const size_t rf_total_count = mxGetNumberOfElements(mx_array);
         std::complex<float>* rf_data_p = reinterpret_cast<std::complex<float>*>(mxGetComplexSingles(mx_array));
-        _rf_data.reset(new std::vector<std::complex<float>>(rf_data_p, &(rf_data_p[rf_total_count - 1])));
+        _rf_data.reset(new std::vector<std::complex<float>>(rf_data_p, &(rf_data_p[rf_total_count])));
         success = true;
     }
     else
@@ -83,7 +91,7 @@ MatParser::_loadLocationData()
     success = true;
     const size_t loc_total_count = mxGetNumberOfElements(mx_array);
     mxSingle* loc_data_p = mxGetSingles(mx_array);
-    _location_data.reset(new std::vector<float>(loc_data_p, &(loc_data_p[loc_total_count - 1])));
+    _location_data.reset(new std::vector<float>(loc_data_p, &(loc_data_p[loc_total_count])));
 
 
     mxDestroyArray(mx_array);

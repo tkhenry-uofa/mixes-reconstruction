@@ -27,27 +27,109 @@ static const float Resolution = 0.00015f;
 static const defs::VolumeDims Volume_Dimensions = { XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution };
 
 
-int beamform_from_file()
+int open_mapped_file(size_t size, std::string filepath, HANDLE* handle, LPVOID* buffer)
+{
+
+
+    *handle = OpenFileMapping(
+        FILE_MAP_ALL_ACCESS,
+        FALSE,
+        filepath.c_str());
+
+    if (*handle == NULL) {
+        std::cerr << "Could not open file mapping object: " << GetLastError() << std::endl;
+        return 1;
+    }
+
+    *buffer = MapViewOfFile(
+        *handle,
+        FILE_MAP_ALL_ACCESS,
+        0,
+        0,
+        size);
+
+    if (*buffer == NULL) {
+        std::cerr << "Could not map view of file: " << GetLastError() << std::endl;
+        CloseHandle(*handle);
+        return 1;
+    }
+
+    return 0;
+}
+
+int load_location_data(std::vector<float>** location_array)
+{
+    std::string filename = "Local\\LocationData";
+    int result = 0;
+    const int length = 3072; // Number of floats
+    const size_t size = length * sizeof(float);
+
+    HANDLE handle = nullptr;
+    LPVOID buffer = nullptr;
+
+    result = open_mapped_file(size, filename, &handle, &buffer);
+    if (result != 0)
+    {
+        return result;
+    }
+
+    float* loc_data_p = static_cast<float*>(buffer);
+
+    *location_array = new std::vector<float>(loc_data_p, &(loc_data_p[length]));
+
+    UnmapViewOfFile(buffer);
+    CloseHandle(handle);
+
+    // Clean up
+    return 0;
+}
+
+int load_rf_data(ComplexVectorF** rx_data)
+{
+    int result = 0;
+    std::string filename = "Local\\RfData";
+
+    const int length = 4339200; // Number of values
+    const size_t size = length * sizeof(std::complex<float>);
+
+    HANDLE handle = nullptr;
+    LPVOID buffer = nullptr;
+
+    result = open_mapped_file(size, filename, &handle, &buffer);
+
+    if (result != 0)
+    {
+        return result;
+    }
+
+    std::complex<float>* rf_data_p = reinterpret_cast<std::complex<float>*>(buffer);
+    *rx_data = new ComplexVectorF(rf_data_p, &(rf_data_p[length]));
+
+    UnmapViewOfFile(buffer);
+    CloseHandle(handle);
+
+
+    return result;
+}
+
+
+
+
+int beamform_from_file(std::string filepath, std::string extension)
 {
     Volume* volume = new Volume(Volume_Dimensions);
-
-    std::string data_dir = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\oct\)";
-    std::string data_file = "psf_40_full_sample";
-    std::string extension = ".mat";
-    std::string full_path = data_dir + data_file + extension;
-
     MatParser* parser = new MatParser();
 
-    std::vector<std::string> names;
-
-    if (!parser->openFile(full_path))
+    if (!parser->openFile(filepath + extension) && !parser->loadAllData())
     {
+        delete volume;
+        delete parser;
         return 1;
     }
 
     int result = volumeReconstruction(volume, parser->getRfData(), parser->getRfDims(), parser->getLocationData(), parser->getTxConfig());
 
-    std::string volume_path = data_dir + data_file + "_beamformed" + extension;
+    std::string volume_path = filepath+ "_beamformed" + extension;
     std::string variable_name = "volume";
 
     if (result == 0)
@@ -61,52 +143,62 @@ int beamform_from_file()
     return result;
 }
 
-int load_from_page()
+int beamform_from_mapped_page(std::string filepath, std::string extension)
 {
-    const char* sharedMemoryName = "Local\\LocationData";
-    const size_t size = 16384;
-    const int length = 3072;
+    int result = 0;
 
-    HANDLE hMapFile = OpenFileMapping(
-        FILE_MAP_ALL_ACCESS,
-        FALSE,
-        sharedMemoryName);
+    Volume* volume = new Volume(Volume_Dimensions);
+    MatParser* parser = new MatParser();
 
-    if (hMapFile == NULL) {
-        std::cerr << "Could not open file mapping object: " << GetLastError() << std::endl;
+    if (!parser->openFile(filepath + extension) && !parser->loadTxConfig())
+    {
+        delete volume;
+        delete parser;
         return 1;
     }
 
-    LPVOID pBuf = MapViewOfFile(
-        hMapFile,
-        FILE_MAP_ALL_ACCESS,
-        0,
-        0,
-        size);
+    std::vector<float>* location_array = nullptr;
+    ComplexVectorF* rf_data = nullptr;
 
-    if (pBuf == NULL) {
-        std::cerr << "Could not map view of file: " << GetLastError() << std::endl;
-        CloseHandle(hMapFile);
-        return 1;
+    result = load_location_data(&location_array);
+    result = load_rf_data(&rf_data);
+
+    struct RfDataDims {
+        size_t element_count;
+        size_t sample_count;
+        size_t tx_count;
+    };
+
+    defs::RfDataDims dims = { 512,2825,3 };
+
+    result = volumeReconstruction(volume, rf_data, dims, location_array, parser->getTxConfig());
+
+    std::string volume_path = filepath + "_beamformed" + extension;
+    std::string variable_name = "volume";
+
+    if (result == 0)
+    {
+        result = parser->SaveFloatArray(volume->get_data(), volume->get_counts().data(), volume_path, variable_name);
     }
 
-    float* loc_data_p = static_cast<float*>(pBuf);
+    delete volume;
+    delete parser;
+    delete rf_data;
+    delete location_array;
 
-    std::vector<float>loc_data(loc_data_p, &(loc_data_p[length - 1]));
-
-    // Clean up
-    UnmapViewOfFile(pBuf);
-    CloseHandle(hMapFile);
-
-    return 0;
+    return result;
 }
+
 
 
 int main()
 {
     int result = 0;
-    //result = beamform_from_file();
-    result = load_from_page();
+
+    std::string data_dir = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\oct\)";
+    std::string data_file = "psf_40_full_sample";
+
+    result = beamform_from_mapped_page(data_dir + data_file, ".mat");
 
     return result;
 

@@ -3,9 +3,6 @@
 
 #include <string>
 #include <cuda_runtime.h>
-#include <complex>
-
-typedef std::vector<std::complex<float>> ComplexVectorF;
 
 namespace defs
 {
@@ -88,11 +85,6 @@ namespace defs
 		const float z_min;
 		const float z_max;
 		const float resolution;
-	};
-
-	struct MappedFileHandle {
-		void* file_handle;
-		void* file_view;
 	};
 
 }
