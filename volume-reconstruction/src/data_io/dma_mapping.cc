@@ -7,8 +7,6 @@
 #include <windows.h>
 #include <stdio.h>
 
-#include "defs.hh"
-
 #include "dma_mapping.hh"
 
 

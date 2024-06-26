@@ -5,7 +5,7 @@
 
 #include <vector>
 
-#include "defs.hh"
+#include "../defs.hh"
 
 class Volume
 {

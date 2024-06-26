@@ -6,7 +6,7 @@
 #include <complex>
 #include <string>
 
-#include "defs.hh"
+#include "../defs.hh"
 #include "volume.hh"
 
 extern "C" {

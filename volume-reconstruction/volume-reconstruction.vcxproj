@@ -81,20 +81,20 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CudaCompile Include="src\kernel.cu" />
+    <CudaCompile Include="src\cuda\kernel.cu" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\dma_mapping.cc" />
+    <ClCompile Include="src\data_io\dma_mapping.cc" />
     <ClCompile Include="src\main.cc" />
-    <ClCompile Include="src\mat_parser.cc" />
-    <ClCompile Include="src\volume.cc" />
+    <ClCompile Include="src\data_io\mat_parser.cc" />
+    <ClCompile Include="src\data_io\volume.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\dma_mapping.hh" />
+    <ClInclude Include="src\data_io\dma_mapping.hh" />
     <ClInclude Include="src\defs.hh" />
-    <ClInclude Include="src\kernel.hh" />
-    <ClInclude Include="src\mat_parser.hh" />
-    <ClInclude Include="src\volume.hh" />
+    <ClInclude Include="src\cuda\kernel.hh" />
+    <ClInclude Include="src\data_io\mat_parser.hh" />
+    <ClInclude Include="src\data_io\volume.hh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

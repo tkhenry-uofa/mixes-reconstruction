@@ -114,7 +114,7 @@ complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData
 
             case defs::TX_Y_LINE:
                 tx_distance = sqrt(powf(Constants.src_pos.z - voxPos.z, 2) + powf(Constants.src_pos.x - voxPos.x, 2)) + Constants.src_pos.z;
-                apro = yLineAprodization(voxPos, { exPos, eyPos, 0.0f });
+               // apro = yLineAprodization(voxPos, { exPos, eyPos, 0.0f });
                 break;
 
         }

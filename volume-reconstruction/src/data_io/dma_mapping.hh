@@ -4,7 +4,7 @@
 
 #include <windows.h>
 
-#include "defs.hh"
+#include "../defs.hh"
 
 namespace dma {
 	int open_mapped_file(size_t size, std::string filepath, HANDLE* handle, LPVOID* buffer);

@@ -1,18 +1,19 @@
 
-#include <stdio.h>
 #include <string>
 #include <vector>
 #include <iostream>
 #include <complex>
 
 #include <windows.h>
-#include <stdio.h>
 
-#include "kernel.hh"
 #include "defs.hh"
-#include "mat_parser.hh"
-#include "volume.hh"
-#include "dma_mapping.hh"
+
+#include "cuda/kernel.hh"
+
+#include "data_io/dma_mapping.hh"
+#include "data_io/mat_parser.hh"
+#include "data_io/volume.hh"
+
 
 static const float XMin = -20.0f / 1000;
 static const float XMax = 20.0f / 1000;
@@ -21,7 +22,7 @@ static const float YMin = -20.0f / 1000;
 static const float YMax = 20.0f / 1000;
 
 static const float ZMin = 30.0f / 1000;
-static const float ZMax = 50.0f / 1000;
+static const float ZMax = 70.0f / 1000;
 
 static const float Resolution = 0.00015f;
 
@@ -33,7 +34,7 @@ int beamform_from_file(std::string filepath, std::string extension)
     Volume* volume = new Volume(Volume_Dimensions);
     MatParser* parser = new MatParser();
 
-    if (!parser->openFile(filepath + extension) && !parser->loadAllData())
+    if (!parser->openFile(filepath + extension) || !parser->loadAllData())
     {
         delete volume;
         delete parser;
@@ -103,9 +104,11 @@ int main()
     int result = 0;
 
     std::string data_dir = R"(C:\Users\tkhen\OneDrive\Documents\MATLAB\lab\mixes\data\oct\)";
-    std::string data_file = "psf_40_full_sample";
+    std::string data_file = "fc_psf_50";
 
-    result = beamform_from_mapped_page(data_dir + data_file, ".mat");
+    //result = beamform_from_mapped_page(data_dir + data_file, ".mat");
+
+    result = beamform_from_file(data_dir + data_file, ".mat");
 
     return result;
 

@@ -24,7 +24,7 @@ namespace defs
 	static const char* Column_count_name = "cols";
 	static const char* Row_count_name = "rows";
 	static const char* Width_name = "width";
-	static const char* Pitch_name = "pitch";
+	static const char* Pitch_name = "x_pitch";
 
 	static const char* X_min_name = "x_min";
 	static const char* x_max_name = "x_max";
