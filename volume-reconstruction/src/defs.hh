@@ -4,6 +4,7 @@
 #include <string>
 #include <cuda_runtime.h>
 #include <complex>
+#include <vector>
 
 typedef std::vector<std::complex<float>> ComplexVectorF;
 
@@ -36,6 +37,11 @@ namespace defs
 	static const char* Transmit_type_name = "transmit";
 	static const char* Pulse_delay_name = "pulse_delay";
 
+
+	struct PositionTextures {
+		cudaTextureObject_t x, y, z;
+	};
+
 	enum TransmitType
 	{
 		TX_PLANE = 0,
@@ -50,6 +56,7 @@ namespace defs
 		float3 src_pos;
 		size_t tx_count;
 		TransmitType tx_type;
+		ulonglong4 volume_size;
 	};
 
 

@@ -18,23 +18,23 @@ public:
 	~Volume();
 
 
-	float* get_data() const { return _data; }
+	float* getData() const { return _data; }
 	const float* end() const { return _end; }
 	
 	
-	defs::VolumeDims get_dims() const { return _dims; }
+	defs::VolumeDims getDims() const { return _dims; }
 
-	std::vector<size_t> get_counts() const { return { _x_count, _y_count, _z_count }; }
-	size_t get_element_count() const { return _element_count; }
-	size_t get_x_count() const { return _x_count; }
-	size_t get_y_count() const { return _y_count; }
-	size_t get_z_count() const { return _z_count; }
+	std::vector<size_t> getCounts() const { return { _x_count, _y_count, _z_count }; }
+	size_t getElementCount() const { return _element_count; }
+	size_t getXCount() const { return _x_count; }
+	size_t getYCount() const { return _y_count; }
+	size_t getZCount() const { return _z_count; }
 
-	const float* get_x_range() { return _x_range.data(); }
-	const float* get_y_range() { return _y_range.data(); }
-	const float* get_z_range() { return _z_range.data(); }
+	const float* getXRange() { return _x_range.data(); }
+	const float* getYRange() { return _y_range.data(); }
+	const float* getZRange() { return _z_range.data(); }
 	
-	float get_max_xz_dist() 
+	float getMaxXZDist() 
 	{ 
 		return sqrt(powf(_dims.x_max, 2) + powf(_dims.y_max, 2) + powf(_dims.z_max, 2)); 
 	}

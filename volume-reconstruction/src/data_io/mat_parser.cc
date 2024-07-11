@@ -42,7 +42,6 @@ MatParser::_loadRfDataArray()
 {
     bool success = false;
     mxArray* mx_array = nullptr;
-    mxChar test;
     // Get RF Data
     mx_array = matGetVariable(_file, defs::Rf_data_name);
     if (mx_array == NULL) {

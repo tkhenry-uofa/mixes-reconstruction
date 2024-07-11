@@ -8,6 +8,7 @@
 
 #include "defs.hh"
 
+#include "cuda/cuda_manager.cuh"
 #include "cuda/kernel.hh"
 
 #include "data_io/dma_mapping.hh"
@@ -48,7 +49,7 @@ int beamform_from_file(std::string filepath, std::string extension)
 
     if (result == 0)
     {
-        result = parser->SaveFloatArray(volume->get_data(), volume->get_counts().data(), volume_path, variable_name);
+        result = parser->SaveFloatArray(volume->getData(), volume->getCounts().data(), volume_path, variable_name);
     }
 
     delete volume;
@@ -86,7 +87,7 @@ int beamform_from_mapped_page(std::string filepath, std::string extension)
 
     if (result == 0)
     {
-        result = parser->SaveFloatArray(volume->get_data(), volume->get_counts().data(), volume_path, variable_name);
+        result = parser->SaveFloatArray(volume->getData(), volume->getCounts().data(), volume_path, variable_name);
     }
 
     delete volume;
@@ -97,7 +98,45 @@ int beamform_from_mapped_page(std::string filepath, std::string extension)
     return result;
 }
 
+int beamform_with_class(std::string filepath, std::string extension)
+{
+    MatParser* parser = new MatParser();
 
+    if (!parser->openFile(filepath + extension) || !parser->loadAllData())
+    {
+        delete parser;
+        return 1;
+    }
+
+    std::vector<float>* volume = nullptr;
+
+    CudaManager* beamformer = new CudaManager(parser->getTxConfig());
+
+    bool result = beamformer->transferLocData(*parser->getLocationData()) &&
+        beamformer->configureVolume(Volume_Dimensions) &&
+        beamformer->transferRfData(*parser->getRfData(), parser->getRfDims());
+
+    if (!result)
+    {
+        return 1;
+    }
+
+    result = beamformer->beamform(volume);
+    std::string volume_path = filepath + "_beamformed" + extension;
+    std::string variable_name = "volume";
+
+    if (result == true)
+    {
+        ulonglong4 vol_vec = beamformer->getVolumeDims();
+        size_t vol_dims[3] = { vol_vec.x, vol_vec.y, vol_vec.z };
+        result = parser->SaveFloatArray(volume->data(),vol_dims , volume_path, variable_name);
+    }
+
+    delete volume;
+    delete parser;
+
+    return result == false;
+}
 
 int main()
 {
@@ -108,7 +147,9 @@ int main()
 
     //result = beamform_from_mapped_page(data_dir + data_file, ".mat");
 
-    result = beamform_from_file(data_dir + data_file, ".mat");
+   // result = beamform_from_file(data_dir + data_file, ".mat");
+
+    result = beamform_with_class(data_dir + data_file, ".mat");
 
     return result;
 
