@@ -24,7 +24,7 @@ static const float YMax = 20.0f / 1000;
 static const float ZMin = 30.0f / 1000;
 static const float ZMax = 70.0f / 1000;
 
-static const float Resolution = 0.00015f;
+static const float Resolution = 0.0003f;
 
 static const defs::VolumeDims Volume_Dimensions = { XMin, XMax, YMin, YMax, ZMin, ZMax, Resolution };
 

@@ -32,6 +32,9 @@ if (STATUS != cudaSuccess) {            \
 #define THREADS_PER_BLOCK 512
 
 
+//texture<float, cudaTextureType1D, cudaReadModeElementType> Y_tex;
+//texture<float, cudaTextureType1D, cudaReadModeElementType> Z_tex;
+
 __constant__ defs::KernelConstants Constants;
 
 static cudaError_t
@@ -68,7 +71,7 @@ yLineAprodization(float3 voxPosition, float3 elePosition)
 // Blocks = voxels
 // Threads = rx elements
 __global__ void 
-complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData, const float* xRange, const float* yRange, const float* zRange, float* volume)
+complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData, const float* xRange, const float* yRange, const float* zRange, float* volume, cudaTextureObject_t tex)
 {
 
     __shared__ cuda::std::complex<float> temp[THREADS_PER_BLOCK];
@@ -82,7 +85,16 @@ complexDelayAndSum(const cuda::std::complex<float>* rfData, const float* locData
     }
     temp[e] = 0.0f;
 
+    int x_vox = blockIdx.x;
+  
+    float texture_test = tex1D<float>(tex, x_vox);
+
     const float3 voxPos = { xRange[blockIdx.x], yRange[blockIdx.y], zRange[blockIdx.z] };
+
+    if (texture_test == voxPos.x)
+    {
+        temp[e] = 1.0f;
+    }
     
     float rx_distance;
     int scanIndex;
@@ -160,6 +172,39 @@ cleanupMemory(void* ptrs[6])
     }
 }
 
+cudaError_t
+create_location_textures(Volume* volume, cudaArray* arrays[3], cudaTextureObject_t* textures[3])
+{
+    cudaError_t status;
+
+    // TEXTURE SETUP
+    cudaChannelFormatDesc channel_desc = cudaCreateChannelDesc(sizeof(float), 0, 0, 0, cudaChannelFormatKindFloat);
+    cudaArray_t tex_array;
+    
+
+    cudaResourceDesc tex_res_desc;
+    memset(&tex_res_desc, 0, sizeof(cudaResourceDesc));
+    tex_res_desc.resType = cudaResourceTypeArray;
+    tex_res_desc.res.array.array = tex_array;
+
+    cudaTextureDesc tex_desc;
+    memset(&tex_desc, 0, sizeof(cudaTextureDesc));
+    tex_desc.addressMode[0] = cudaAddressModeClamp;
+    tex_desc.filterMode = cudaFilterModePoint;
+    tex_desc.readMode = cudaReadModeElementType;
+    tex_desc.normalizedCoords = false;
+
+    cudaMallocArray(&tex_array, &channel_desc, volume->get_x_count());
+    cudaMemcpyToArray(tex_array, 0, 0, volume->get_x_range(), volume->get_x_count() * sizeof(float), cudaMemcpyHostToDevice);
+
+    cudaCreateTextureObject(&tex_obj, &tex_res_desc, &tex_desc, NULL);
+
+
+    return status;
+
+
+}
+
 cudaError_t 
 volumeReconstruction(Volume* volume, const std::vector<std::complex<float>>* rf_data, const defs::RfDataDims& rf_dims, const std::vector<float>* loc_data, const defs::TxConfig& tx_config)
 {
@@ -174,6 +219,9 @@ volumeReconstruction(Volume* volume, const std::vector<std::complex<float>>* rf_
     cudaError_t cuda_status;
 
     void* device_data[6] = {d_rf_data, d_volume, d_x_positions, d_y_positions, d_z_positions, d_loc_data };
+
+
+   
 
 
     std::cout << "Allocating GPU Memory" << std::endl;
@@ -224,7 +272,7 @@ volumeReconstruction(Volume* volume, const std::vector<std::complex<float>>* rf_
 
     dim3 gridDim((unsigned int)volume->get_x_count(), (unsigned int)volume->get_y_count(), (unsigned int)volume->get_z_count());
     auto start = std::chrono::high_resolution_clock::now();
-    complexDelayAndSum<<<gridDim, THREADS_PER_BLOCK >>>(d_rf_data, d_loc_data, d_x_positions, d_y_positions, d_z_positions, d_volume);
+    complexDelayAndSum<<<gridDim, THREADS_PER_BLOCK >>>(d_rf_data, d_loc_data, d_x_positions, d_y_positions, d_z_positions, d_volume, tex_obj);
 
    
     cuda_status = cudaGetLastError();
