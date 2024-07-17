@@ -70,6 +70,7 @@ CudaManager::configureVolume(const defs::VolumeDims& dims)
 
 
 	cudaError_t cuda_status = cudaMalloc((void**)&_d_volume, _vox_counts.w * sizeof(float));
+	RETURN_IF_ERROR(cuda_status, "Failed to malloc volume on device.")
 
 	// TEXTURE SETUP
 	// 32 bits in the channel 
@@ -133,21 +134,12 @@ CudaManager::transferLocData(const std::vector<float>& loc_data)
 	}
 
 	cudaError_t cuda_status = cudaMalloc((void**)&_d_loc_data, loc_data.size() * sizeof(float));
-
-	if (cuda_status != cudaSuccess)
-	{
-		std::cerr << "Failed to malloc location array on device, error: " << cuda_status << std::endl;
-	} 
+	RETURN_IF_ERROR(cuda_status, "Failed to malloc location array on device.")
 
 	cuda_status = cudaMemcpy(_d_loc_data, (void*)loc_data.data(), loc_data.size() * sizeof(float), cudaMemcpyHostToDevice);
-
-	if (cuda_status != cudaSuccess)
-	{
-		std::cerr << "Failed to copy location array to device, error: " << cuda_status << std::endl;
-	}
+	RETURN_IF_ERROR(cuda_status, "Failed to copy location array to device.")
 
 	return cuda_status == cudaSuccess;
-	
 }
 
 bool
@@ -159,25 +151,14 @@ CudaManager::transferRfData(const std::vector<std::complex<float>>& rf_data, con
 	}
 
 	_rf_dims = rf_dims;
-	size_t rf_data_size = rf_data.size();
+	size_t rf_data_size= rf_data.size();
 	cudaError_t cuda_status = cudaMalloc((void**)&_d_rf_data, rf_data_size * sizeof(std::complex<float>));
-
-	if (cuda_status != cudaSuccess)
-	{
-		std::cerr << "Failed to malloc location array on device, error: " << cuda_status << std::endl;
-		return false;
-	}
+	RETURN_IF_ERROR(cuda_status, "Failed to malloc rf data on device.")
 
 	cuda_status = cudaMemcpy(_d_rf_data, (void*)rf_data.data(), rf_data.size() * sizeof(std::complex<float>), cudaMemcpyHostToDevice);
-
-	if (cuda_status != cudaSuccess)
-	{
-		std::cerr << "Failed to copy location array to device, error: " << cuda_status << std::endl;
-		return false;
-	}
+	RETURN_IF_ERROR(cuda_status, "Failed to copy rf data to device.")
 
 	return cuda_status == cudaSuccess;
-
 }
 
 bool
@@ -194,43 +175,27 @@ CudaManager::beamform(std::vector<float>** volume)
 		_vox_counts
 	};
 
-	cudaError_t status = helpers::copy_constants(const_struct);
-	if (status != cudaSuccess)
-	{
-		std::cerr << "Failed to copy constants to GPU" << std::endl;
-		return false;
-	}
+	cudaError_t cuda_status = helpers::copy_constants(const_struct);
+	RETURN_IF_ERROR(cuda_status, "Failed to copy constants to device.")
+
 
 	dim3 gridDim((unsigned int)_vox_counts.x, (unsigned int)_vox_counts.y, (unsigned int)_vox_counts.z);
 	auto start = std::chrono::high_resolution_clock::now();
 	kernels::complexDelayAndSum <<<gridDim, THREADS_PER_BLOCK >>> (_d_rf_data, _d_loc_data, _d_volume, _textures);
 
-	status = cudaGetLastError();
-	if (status != cudaSuccess)
-	{
-		std::cerr << "Kernel failed with error: " << status << " ," << cudaGetErrorString(status) << std::endl;
-		return false;
-	}
-
-	status = cudaDeviceSynchronize();
-	if (status != cudaSuccess)
-	{
-		std::cerr << "Sync failed with error: " << status << " ," << cudaGetErrorString(status) << std::endl;
-		return false;
-	}
+	cuda_status = cudaGetLastError();
+	RETURN_IF_ERROR(cuda_status, "Kernel failed.")
+	cuda_status = cudaDeviceSynchronize();
+	RETURN_IF_ERROR(cuda_status, "Sync failed.")
 
 	auto end = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> elapsed = end - start;
 	std::cout << "Kernel duration: " << elapsed.count() << " seconds" << std::endl;
 
 	*volume = new std::vector<float>(_vox_counts.w);
-	status = cudaMemcpy((*volume)->data(), _d_volume, _vox_counts.w * sizeof(float), cudaMemcpyDeviceToHost);
-	if (status != cudaSuccess)
-	{
-		std::cerr << "Copying volume off GPU failed with error: " << status << ", " << cudaGetErrorString(status) << std::endl;
-		return false;
-	}
+	cuda_status = cudaMemcpy((*volume)->data(), _d_volume, _vox_counts.w * sizeof(float), cudaMemcpyDeviceToHost);
+	RETURN_IF_ERROR(cuda_status, "Copying volume to CPU failed.")
 
-	return status == cudaSuccess;
+	return cuda_status == cudaSuccess;
 	
 }

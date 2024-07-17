@@ -87,6 +87,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\data_io\dma_mapping.cc" />
+    <ClCompile Include="src\data_io\shared_memory_handler.cc" />
     <ClCompile Include="src\main.cc" />
     <ClCompile Include="src\data_io\mat_parser.cc" />
     <ClCompile Include="src\data_io\volume.cc" />
@@ -95,6 +96,7 @@
     <ClInclude Include="src\cuda\cuda_manager.cuh" />
     <ClInclude Include="src\cuda\delay_and_sum_kernel.cuh" />
     <ClInclude Include="src\data_io\dma_mapping.hh" />
+    <ClInclude Include="src\data_io\shared_memory_handler.hh" />
     <ClInclude Include="src\defs.hh" />
     <ClInclude Include="src\cuda\kernel.hh" />
     <ClInclude Include="src\data_io\mat_parser.hh" />

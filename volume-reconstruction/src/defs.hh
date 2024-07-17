@@ -1,10 +1,26 @@
 #ifndef DEFS_H
 #define DEFS_H
 
+#include <stdio.h>
+#include <string.h>
+
 #include <string>
 #include <cuda_runtime.h>
 #include <complex>
 #include <vector>
+
+#define MAX_ERROR_LENGTH 1024
+static char Error_buffer[MAX_ERROR_LENGTH];
+
+#define RETURN_IF_ERROR(STATUS, MESSAGE)\
+strcpy(Error_buffer, MESSAGE); \
+strcat(Error_buffer, " error: %s (%d) '%s' \n"); \
+if (STATUS != cudaSuccess) { \
+fprintf(stderr, Error_buffer, \
+		cudaGetErrorName(STATUS), \
+		(int)STATUS, \
+		cudaGetErrorString(STATUS)); \
+return false;}
 
 typedef std::vector<std::complex<float>> ComplexVectorF;
 
