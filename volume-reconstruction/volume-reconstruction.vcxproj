@@ -81,6 +81,8 @@
     </CudaCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <CudaCompile Include="src\cuda\cuda_manager.cu" />
+    <CudaCompile Include="src\cuda\delay_and_sum_kernel.cu" />
     <CudaCompile Include="src\cuda\kernel.cu" />
   </ItemGroup>
   <ItemGroup>
@@ -90,6 +92,8 @@
     <ClCompile Include="src\data_io\volume.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\cuda\cuda_manager.cuh" />
+    <ClInclude Include="src\cuda\delay_and_sum_kernel.cuh" />
     <ClInclude Include="src\data_io\dma_mapping.hh" />
     <ClInclude Include="src\defs.hh" />
     <ClInclude Include="src\cuda\kernel.hh" />
