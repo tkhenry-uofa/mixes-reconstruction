@@ -121,7 +121,7 @@ int beamform_with_class(std::string filepath, std::string extension)
         return 1;
     }
 
-    result = beamformer->beamform(volume);
+    result = beamformer->beamform(&volume);
     std::string volume_path = filepath + "_beamformed" + extension;
     std::string variable_name = "volume";
 

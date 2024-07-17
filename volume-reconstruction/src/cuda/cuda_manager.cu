@@ -5,7 +5,7 @@
 #include "delay_and_sum_kernel.cuh"
 #include "cuda_manager.cuh"
 
-CudaManager::CudaManager( defs::TxConfig config) : _tx_config(config), _textures({0,0,0}), _position_arrays(), _vox_counts({0,0,0,0}), _rf_dims({0,0,0})
+CudaManager::CudaManager( defs::TxConfig config) : _tx_config(config), _textures({0,0,0}), _position_arrays(), _vox_counts({0,0,0,0}), _rf_dims({0,0,0}), _d_volume(nullptr)
 {
 	std::cout << "Allocating GPU Memory" << std::endl;
 	cudaError_t cuda_status = cudaSetDevice(0);
@@ -56,9 +56,6 @@ CudaManager::configureVolume(const defs::VolumeDims& dims)
 
 	cudaFree(_d_volume);
 
-	cudaError_t cuda_status = cudaMalloc((void**)&_d_volume, _vox_counts.w * sizeof(float));
-
-
 	for (float x = dims.x_min; x <= dims.x_max; x += dims.resolution) {
 		x_range.push_back(x);
 	}
@@ -70,6 +67,9 @@ CudaManager::configureVolume(const defs::VolumeDims& dims)
 	}
 
 	_vox_counts = { z_range.size(), y_range.size(), z_range.size(), x_range.size() * y_range.size() * z_range.size() };
+
+
+	cudaError_t cuda_status = cudaMalloc((void**)&_d_volume, _vox_counts.w * sizeof(float));
 
 	// TEXTURE SETUP
 	// 32 bits in the channel 
@@ -159,8 +159,8 @@ CudaManager::transferRfData(const std::vector<std::complex<float>>& rf_data, con
 	}
 
 	_rf_dims = rf_dims;
-
-	cudaError_t cuda_status = cudaMalloc((void**)&_d_rf_data, rf_data.size() * sizeof(float));
+	size_t rf_data_size = rf_data.size();
+	cudaError_t cuda_status = cudaMalloc((void**)&_d_rf_data, rf_data_size * sizeof(std::complex<float>));
 
 	if (cuda_status != cudaSuccess)
 	{
@@ -168,7 +168,7 @@ CudaManager::transferRfData(const std::vector<std::complex<float>>& rf_data, con
 		return false;
 	}
 
-	cuda_status = cudaMemcpy(_d_rf_data, (void*)rf_data.data(), rf_data.size() * sizeof(float), cudaMemcpyHostToDevice);
+	cuda_status = cudaMemcpy(_d_rf_data, (void*)rf_data.data(), rf_data.size() * sizeof(std::complex<float>), cudaMemcpyHostToDevice);
 
 	if (cuda_status != cudaSuccess)
 	{
@@ -181,9 +181,9 @@ CudaManager::transferRfData(const std::vector<std::complex<float>>& rf_data, con
 }
 
 bool
-CudaManager::beamform(std::vector<float>* volume)
+CudaManager::beamform(std::vector<float>** volume)
 {
-	volume = nullptr;
+	*volume = nullptr;
 	defs::KernelConstants const_struct =
 	{
 		_rf_dims.element_count,
@@ -223,8 +223,8 @@ CudaManager::beamform(std::vector<float>* volume)
 	std::chrono::duration<double> elapsed = end - start;
 	std::cout << "Kernel duration: " << elapsed.count() << " seconds" << std::endl;
 
-	volume = new std::vector<float>(_vox_counts.w);
-	status = cudaMemcpy(volume->data(), _d_volume, _vox_counts.w * sizeof(float), cudaMemcpyDeviceToHost);
+	*volume = new std::vector<float>(_vox_counts.w);
+	status = cudaMemcpy((*volume)->data(), _d_volume, _vox_counts.w * sizeof(float), cudaMemcpyDeviceToHost);
 	if (status != cudaSuccess)
 	{
 		std::cerr << "Copying volume off GPU failed with error: " << status << ", " << cudaGetErrorString(status) << std::endl;

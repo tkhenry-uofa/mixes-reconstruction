@@ -16,10 +16,7 @@ kernels::complexDelayAndSum(const cuda::std::complex<float>* rfData, const float
 
     int e = threadIdx.x;
 
-    defs::KernelConstants consts = Constants;
-
-
-    if (e >= consts.element_count)
+    if (e >= Constants.element_count)
     {
         return;
     }

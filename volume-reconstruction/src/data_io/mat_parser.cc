@@ -181,17 +181,17 @@ MatParser::SaveFloatArray(float* ptr, size_t dims[3], std::string file_path, std
     {
         std::cerr << "Failed to open file for volume: " << file_path << std::endl;
         mxDestroyArray(volume_array);
-        return 1;
+        return false;
     }
 
     int error = matPutVariable(file_p, variable_name.c_str(), volume_array);
     if (error)
     {
         std::cerr << "Failed to save array to file." << std::endl;
-        return error;
+        return false;
     }
 
     matClose(file_p);
 
-    return 0;
+    return true;
 }

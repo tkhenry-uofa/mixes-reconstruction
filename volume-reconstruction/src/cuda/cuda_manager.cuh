@@ -26,7 +26,7 @@ public:
 
 	bool configureVolume(const defs::VolumeDims& dims);
 
-	bool beamform(std::vector<float>* volume );
+	bool beamform(std::vector<float>** volume );
 
 	ulonglong4 getVolumeDims()
 	{
